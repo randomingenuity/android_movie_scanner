@@ -22,8 +22,7 @@ object CsvExporter {
                 movie.posterUrl.orEmpty().toCsvField(),
             ).joinToString(",")
         }
-        val csvBody = (listOf(header) + rows).joinToString("\n")
-        return "\uFEFF$csvBody"
+        return (listOf(header) + rows).joinToString("\n")
     }
 
     private fun String.toCsvField(): String {
