@@ -1,0 +1,4 @@
+-keepattributes *Annotation*
+-keep class com.movie.scanner.data.remote.** { *; }
+-keep class com.movie.scanner.data.model.** { *; }
+-keep class com.google.zxing.** { *; }
