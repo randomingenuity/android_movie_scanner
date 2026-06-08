@@ -1,6 +1,7 @@
 package com.movie.scanner.data.repository
 
 import com.movie.scanner.data.model.TmdbLanguageOption
+import com.movie.scanner.data.remote.ClaudeApi
 import com.movie.scanner.data.remote.GeminiApi
 import com.movie.scanner.data.remote.OpenAiApi
 import com.movie.scanner.data.remote.TmdbApi
@@ -16,6 +17,10 @@ data class OpenAiValidationResult(
     val models: List<String>,
 )
 
+data class ClaudeValidationResult(
+    val models: List<String>,
+)
+
 data class TmdbValidationResult(
     val languages: List<TmdbLanguageOption>,
 )
@@ -24,6 +29,7 @@ data class TmdbValidationResult(
 class SettingsValidationRepository @Inject constructor(
     private val geminiApi: GeminiApi,
     private val openAiApi: OpenAiApi,
+    private val claudeApi: ClaudeApi,
     private val tmdbApi: TmdbApi,
 ) {
     suspend fun validateGeminiApiKey(apiKey: String): Result<GeminiValidationResult> {
@@ -65,6 +71,26 @@ class SettingsValidationRepository @Inject constructor(
                 Result.failure(IllegalStateException("No OpenAI chat models available for this API key."))
             } else {
                 Result.success(OpenAiValidationResult(models = models))
+            }
+        } catch (exception: Exception) {
+            Result.failure(Exception(ValidationErrorFormatter.format(exception), exception))
+        }
+    }
+
+    suspend fun validateClaudeApiKey(apiKey: String): Result<ClaudeValidationResult> {
+        if (apiKey.isBlank()) {
+            return Result.failure(IllegalArgumentException("Claude API key is empty."))
+        }
+        return try {
+            val response = claudeApi.listModels(apiKey = apiKey)
+            val models = response.data
+                .map { model -> model.id }
+                .filter { modelId -> modelId.startsWith("claude-") }
+                .sorted()
+            if (models.isEmpty()) {
+                Result.failure(IllegalStateException("No Claude models available for this API key."))
+            } else {
+                Result.success(ClaudeValidationResult(models = models))
             }
         } catch (exception: Exception) {
             Result.failure(Exception(ValidationErrorFormatter.format(exception), exception))

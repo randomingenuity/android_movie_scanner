@@ -138,7 +138,7 @@ fun ListScreen(
         ) {
             if (movies.isEmpty()) {
                 Text(
-                    text = "No movies yet. Scan a cover to get started.",
+                    text = "No features yet. Click \"Scan\" to get started.",
                     modifier = Modifier.padding(24.dp),
                 )
             } else {

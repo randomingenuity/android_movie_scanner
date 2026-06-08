@@ -73,6 +73,7 @@ class ReviewViewModel @Inject constructor(
         val capturedBarcode = scanSessionHolder.resolveCapturedUpc()
         _uiState.value = ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
+            location = scanSessionHolder.lastReviewLocation,
             title = title,
             year = year,
             barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
@@ -129,6 +130,7 @@ class ReviewViewModel @Inject constructor(
     }
 
     fun updateLocation(value: String) {
+        scanSessionHolder.rememberReviewLocation(value)
         _uiState.update { it.copy(location = value, actionMessage = null) }
     }
 
@@ -270,6 +272,7 @@ class ReviewViewModel @Inject constructor(
     }
 
     private fun finishAfterAdd(title: String) {
+        scanSessionHolder.rememberReviewLocation(_uiState.value.location)
         scanSessionHolder.finishScan(addedTitle = title)
         _uiState.update {
             it.copy(
@@ -483,7 +486,7 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 featureType = scanSessionHolder.lastReviewFeatureType,
                 discType = null,
-                location = "",
+                location = scanSessionHolder.lastReviewLocation,
                 numberOfDiscsInput = "",
             )
         }

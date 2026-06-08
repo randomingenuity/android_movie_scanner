@@ -43,6 +43,7 @@ fun SettingsScreen(
     }
     val geminiModelsEnabled = uiState.geminiField.status == FieldValidationStatus.VALID
     val openAiModelsEnabled = uiState.openAiField.status == FieldValidationStatus.VALID
+    val claudeModelsEnabled = uiState.claudeField.status == FieldValidationStatus.VALID
     val tmdbLanguagesEnabled = uiState.tmdbField.status == FieldValidationStatus.VALID
 
     Scaffold(
@@ -94,6 +95,23 @@ fun SettingsScreen(
                     models = uiState.openAiModels,
                     enabled = openAiModelsEnabled,
                     onModelSelected = viewModel::updateOpenAiModel,
+                )
+            }
+            ValidatedApiKeyField(
+                value = uiState.claudeApiKey,
+                onValueChange = viewModel::updateClaudeApiKey,
+                label = "Claude API key",
+                field = uiState.claudeField,
+                onBlurValidate = viewModel::validateClaudeField,
+                visualTransformation = PasswordVisualTransformation(),
+            )
+            if (uiState.claudeApiKey.isNotBlank()) {
+                ModelDropdownField(
+                    label = "Claude model",
+                    selectedModel = uiState.claudeModel,
+                    models = uiState.claudeModels,
+                    enabled = claudeModelsEnabled,
+                    onModelSelected = viewModel::updateClaudeModel,
                 )
             }
             ValidatedApiKeyField(

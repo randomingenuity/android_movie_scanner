@@ -45,6 +45,7 @@ class ReviewViewModelTest {
         )
         every { scanSessionHolder.resolveCapturedUpc() } returns "9781234567890"
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
+        every { scanSessionHolder.lastReviewLocation } returns ""
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
         coEvery { movieRepository.existsByTitleAndYear(any(), any()) } returns false
         coEvery { movieRepository.existsByTitleAndSeason(any(), any()) } returns false
@@ -85,6 +86,29 @@ class ReviewViewModelTest {
 
         assertEquals("9781234567890", sanitized)
         assertEquals("9781234567890", viewModel.uiState.value.barcode)
+    }
+
+    @Test
+    fun init_restoresLocationFromPreviousEntry() = runTest {
+        every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        assertEquals("Shelf A", viewModel.uiState.value.location)
+    }
+
+    @Test
+    fun updateLocation_remembersClearedValue() = runTest {
+        every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        viewModel.updateLocation("")
+
+        io.mockk.verify { scanSessionHolder.rememberReviewLocation("") }
+        assertEquals("", viewModel.uiState.value.location)
     }
 
     @Test

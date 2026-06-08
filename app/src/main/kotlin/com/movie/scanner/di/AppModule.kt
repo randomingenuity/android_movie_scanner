@@ -7,6 +7,7 @@ import com.movie.scanner.data.local.MIGRATION_1_2
 import com.movie.scanner.data.local.MIGRATION_2_3
 import com.movie.scanner.data.local.MIGRATION_3_4
 import com.movie.scanner.data.local.MovieDao
+import com.movie.scanner.data.remote.ClaudeApi
 import com.movie.scanner.data.remote.GeminiApi
 import com.movie.scanner.data.remote.OpenAiApi
 import com.movie.scanner.data.remote.TmdbApi
@@ -81,6 +82,18 @@ object AppModule {
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
         .create(OpenAiApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideClaudeApi(
+        okHttpClient: OkHttpClient,
+        moshi: Moshi,
+    ): ClaudeApi = Retrofit.Builder()
+        .baseUrl("https://api.anthropic.com/")
+        .client(okHttpClient)
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+        .create(ClaudeApi::class.java)
 
     @Provides
     @Singleton

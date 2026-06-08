@@ -20,16 +20,20 @@ import javax.inject.Inject
 data class SettingsUiState(
     val geminiApiKey: String = "",
     val openAiApiKey: String = "",
+    val claudeApiKey: String = "",
     val tmdbApiKey: String = "",
     val preferredLlmProvider: LlmProvider = LlmProvider.GEMINI,
     val geminiModel: String = "",
     val openAiModel: String = ApiKeyStore.DEFAULT_OPENAI_MODEL,
+    val claudeModel: String = ApiKeyStore.DEFAULT_CLAUDE_MODEL,
     val tmdbLanguageOverride: String = "",
     val geminiField: ValidatedField = ValidatedField(),
     val openAiField: ValidatedField = ValidatedField(),
+    val claudeField: ValidatedField = ValidatedField(),
     val tmdbField: ValidatedField = ValidatedField(),
     val geminiModels: List<String> = emptyList(),
     val openAiModels: List<String> = emptyList(),
+    val claudeModels: List<String> = emptyList(),
     val tmdbLanguages: List<TmdbLanguageOption> = emptyList(),
     val statusMessage: String? = null,
     val errorMessage: String? = null,
@@ -78,6 +82,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateClaudeApiKey(value: String) {
+        _uiState.update {
+            it.copy(
+                claudeApiKey = value,
+                claudeField = ValidatedField(),
+                claudeModels = emptyList(),
+                errorMessage = null,
+            )
+        }
+    }
+
     fun updateTmdbApiKey(value: String) {
         _uiState.update {
             it.copy(
@@ -99,6 +114,10 @@ class SettingsViewModel @Inject constructor(
 
     fun updateOpenAiModel(value: String) {
         _uiState.update { it.copy(openAiModel = value) }
+    }
+
+    fun updateClaudeModel(value: String) {
+        _uiState.update { it.copy(claudeModel = value) }
     }
 
     fun updateTmdbLanguageOverride(value: String) {
@@ -167,11 +186,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { state ->
                 if (result.isSuccess) {
                     val models = result.getOrThrow().models
-                    val selectedModel = when {
-                        state.openAiModel in models -> state.openAiModel
-                        ApiKeyStore.DEFAULT_OPENAI_MODEL in models -> ApiKeyStore.DEFAULT_OPENAI_MODEL
-                        else -> models.first()
-                    }
+                    val selectedModel = resolveOpenAiModelSelection(models, state.openAiModel)
                     state.copy(
                         openAiField = ValidatedField(status = FieldValidationStatus.VALID),
                         openAiModels = models,
@@ -184,6 +199,44 @@ class SettingsViewModel @Inject constructor(
                             errorMessage = result.exceptionOrNull()?.message,
                         ),
                         openAiModels = emptyList(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun validateClaudeField() {
+        val apiKey = _uiState.value.claudeApiKey
+        if (apiKey.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    claudeField = ValidatedField(status = FieldValidationStatus.IDLE),
+                    claudeModels = emptyList(),
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(claudeField = ValidatedField(status = FieldValidationStatus.VALIDATING))
+            }
+            val result = settingsValidationRepository.validateClaudeApiKey(apiKey)
+            _uiState.update { state ->
+                if (result.isSuccess) {
+                    val models = result.getOrThrow().models
+                    val selectedModel = resolveClaudeModelSelection(models, state.claudeModel)
+                    state.copy(
+                        claudeField = ValidatedField(status = FieldValidationStatus.VALID),
+                        claudeModels = models,
+                        claudeModel = selectedModel,
+                    )
+                } else {
+                    state.copy(
+                        claudeField = ValidatedField(
+                            status = FieldValidationStatus.INVALID,
+                            errorMessage = result.exceptionOrNull()?.message,
+                        ),
+                        claudeModels = emptyList(),
                     )
                 }
             }
@@ -228,6 +281,7 @@ class SettingsViewModel @Inject constructor(
     fun validateAllConfiguredFields() {
         validateGeminiField()
         validateOpenAiField()
+        validateClaudeField()
         validateTmdbField()
     }
 
@@ -253,7 +307,8 @@ class SettingsViewModel @Inject constructor(
             }
             val hasGemini = state.geminiApiKey.isNotBlank()
             val hasOpenAi = state.openAiApiKey.isNotBlank()
-            if (!hasGemini && !hasOpenAi) {
+            val hasClaude = state.claudeApiKey.isNotBlank()
+            if (!hasGemini && !hasOpenAi && !hasClaude) {
                 _uiState.update {
                     it.copy(isSaving = false, errorMessage = "Configure at least one LLM API key.")
                 }
@@ -277,6 +332,15 @@ class SettingsViewModel @Inject constructor(
                 }
                 return@launch
             }
+            if (hasClaude && state.claudeField.status != FieldValidationStatus.VALID) {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = state.claudeField.errorMessage ?: "Claude API key must pass validation.",
+                    )
+                }
+                return@launch
+            }
             val geminiModelToSave = if (hasGemini) {
                 state.geminiModel.ifBlank {
                     GeminiModelSelector.selectLatestFlashModel(state.geminiModels)
@@ -290,6 +354,11 @@ class SettingsViewModel @Inject constructor(
             } else {
                 null
             }
+            val claudeModelToSave = if (hasClaude) {
+                state.claudeModel.ifBlank { ApiKeyStore.DEFAULT_CLAUDE_MODEL }
+            } else {
+                null
+            }
             if (hasGemini) {
                 apiKeyStore.saveGeminiApiKey(state.geminiApiKey)
                 apiKeyStore.saveGeminiModel(geminiModelToSave!!)
@@ -297,6 +366,10 @@ class SettingsViewModel @Inject constructor(
             if (hasOpenAi) {
                 apiKeyStore.saveOpenAiApiKey(state.openAiApiKey)
                 apiKeyStore.saveOpenAiModel(openAiModelToSave!!)
+            }
+            if (hasClaude) {
+                apiKeyStore.saveClaudeApiKey(state.claudeApiKey)
+                apiKeyStore.saveClaudeModel(claudeModelToSave!!)
             }
             apiKeyStore.saveTmdbApiKey(state.tmdbApiKey)
             apiKeyStore.savePreferredLlmProvider(state.preferredLlmProvider)
@@ -321,6 +394,9 @@ class SettingsViewModel @Inject constructor(
         if (state.openAiApiKey.isNotBlank()) {
             validateOpenAiFieldAndAwait()
         }
+        if (state.claudeApiKey.isNotBlank()) {
+            validateClaudeFieldAndAwait()
+        }
         if (state.tmdbApiKey.isNotBlank()) {
             validateTmdbFieldAndAwait()
         }
@@ -333,6 +409,9 @@ class SettingsViewModel @Inject constructor(
         }
         if (state.openAiApiKey.isNotBlank()) {
             validateOpenAiFieldAndAwait()
+        }
+        if (state.claudeApiKey.isNotBlank()) {
+            validateClaudeFieldAndAwait()
         }
         if (state.tmdbApiKey.isNotBlank()) {
             validateTmdbFieldAndAwait()
@@ -403,11 +482,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { state ->
             if (result.isSuccess) {
                 val models = result.getOrThrow().models
-                val selectedModel = when {
-                    state.openAiModel in models -> state.openAiModel
-                    ApiKeyStore.DEFAULT_OPENAI_MODEL in models -> ApiKeyStore.DEFAULT_OPENAI_MODEL
-                    else -> models.first()
-                }
+                val selectedModel = resolveOpenAiModelSelection(models, state.openAiModel)
                 state.copy(
                     openAiField = ValidatedField(status = FieldValidationStatus.VALID),
                     openAiModels = models,
@@ -420,6 +495,36 @@ class SettingsViewModel @Inject constructor(
                         errorMessage = result.exceptionOrNull()?.message,
                     ),
                     openAiModels = emptyList(),
+                )
+            }
+        }
+    }
+
+    private suspend fun validateClaudeFieldAndAwait() {
+        val apiKey = _uiState.value.claudeApiKey
+        if (apiKey.isBlank()) {
+            return
+        }
+        _uiState.update {
+            it.copy(claudeField = ValidatedField(status = FieldValidationStatus.VALIDATING))
+        }
+        val result = settingsValidationRepository.validateClaudeApiKey(apiKey)
+        _uiState.update { state ->
+            if (result.isSuccess) {
+                val models = result.getOrThrow().models
+                val selectedModel = resolveClaudeModelSelection(models, state.claudeModel)
+                state.copy(
+                    claudeField = ValidatedField(status = FieldValidationStatus.VALID),
+                    claudeModels = models,
+                    claudeModel = selectedModel,
+                )
+            } else {
+                state.copy(
+                    claudeField = ValidatedField(
+                        status = FieldValidationStatus.INVALID,
+                        errorMessage = result.exceptionOrNull()?.message,
+                    ),
+                    claudeModels = emptyList(),
                 )
             }
         }
@@ -452,13 +557,33 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun resolveOpenAiModelSelection(
+        models: List<String>,
+        currentSelection: String,
+    ): String = when {
+        currentSelection in models -> currentSelection
+        ApiKeyStore.DEFAULT_OPENAI_MODEL in models -> ApiKeyStore.DEFAULT_OPENAI_MODEL
+        else -> models.first()
+    }
+
+    private fun resolveClaudeModelSelection(
+        models: List<String>,
+        currentSelection: String,
+    ): String = when {
+        currentSelection in models -> currentSelection
+        ApiKeyStore.DEFAULT_CLAUDE_MODEL in models -> ApiKeyStore.DEFAULT_CLAUDE_MODEL
+        else -> models.first()
+    }
+
     private fun loadState(): SettingsUiState = SettingsUiState(
         geminiApiKey = apiKeyStore.getGeminiApiKey().orEmpty(),
         openAiApiKey = apiKeyStore.getOpenAiApiKey().orEmpty(),
+        claudeApiKey = apiKeyStore.getClaudeApiKey().orEmpty(),
         tmdbApiKey = apiKeyStore.getTmdbApiKey().orEmpty(),
         preferredLlmProvider = apiKeyStore.getPreferredLlmProvider(),
         geminiModel = apiKeyStore.getGeminiModel().orEmpty(),
         openAiModel = apiKeyStore.getOpenAiModel(),
+        claudeModel = apiKeyStore.getClaudeModel(),
         tmdbLanguageOverride = apiKeyStore.getTmdbLanguageOverride().orEmpty(),
     )
 }

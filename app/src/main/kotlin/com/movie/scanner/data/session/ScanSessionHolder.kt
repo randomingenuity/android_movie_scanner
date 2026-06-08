@@ -36,10 +36,16 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var lastReviewFeatureType: FeatureType = FeatureType.MOVIE
         private set
+    var lastReviewLocation: String = ""
+        private set
     private var coverRetakeRequested: Boolean = false
 
     fun rememberReviewFeatureType(featureType: FeatureType) {
         lastReviewFeatureType = featureType
+    }
+
+    fun rememberReviewLocation(location: String) {
+        lastReviewLocation = location
     }
 
     fun startNewScan() {

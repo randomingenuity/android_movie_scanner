@@ -27,6 +27,8 @@ class ApiKeyStore @Inject constructor(
 
     fun getOpenAiApiKey(): String? = preferences.getString(KEY_OPENAI, null)?.takeIf { it.isNotEmpty() }
 
+    fun getClaudeApiKey(): String? = preferences.getString(KEY_CLAUDE, null)?.takeIf { it.isNotEmpty() }
+
     fun getTmdbApiKey(): String? = preferences.getString(KEY_TMDB, null)?.takeIf { it.isNotEmpty() }
 
     fun getPreferredLlmProvider(): LlmProvider {
@@ -43,6 +45,9 @@ class ApiKeyStore @Inject constructor(
     fun getOpenAiModel(): String =
         preferences.getString(KEY_OPENAI_MODEL, DEFAULT_OPENAI_MODEL) ?: DEFAULT_OPENAI_MODEL
 
+    fun getClaudeModel(): String =
+        preferences.getString(KEY_CLAUDE_MODEL, DEFAULT_CLAUDE_MODEL) ?: DEFAULT_CLAUDE_MODEL
+
     fun getTmdbLanguageOverride(): String? =
         preferences.getString(KEY_TMDB_LANGUAGE, null)?.takeIf { it.isNotEmpty() }
 
@@ -52,6 +57,10 @@ class ApiKeyStore @Inject constructor(
 
     fun saveOpenAiApiKey(value: String) {
         preferences.edit().putString(KEY_OPENAI, value).commit()
+    }
+
+    fun saveClaudeApiKey(value: String) {
+        preferences.edit().putString(KEY_CLAUDE, value).commit()
     }
 
     fun saveTmdbApiKey(value: String) {
@@ -70,6 +79,10 @@ class ApiKeyStore @Inject constructor(
         preferences.edit().putString(KEY_OPENAI_MODEL, model).commit()
     }
 
+    fun saveClaudeModel(model: String) {
+        preferences.edit().putString(KEY_CLAUDE_MODEL, model).commit()
+    }
+
     fun saveTmdbLanguageOverride(language: String?) {
         if (language.isNullOrBlank()) {
             preferences.edit().remove(KEY_TMDB_LANGUAGE).commit()
@@ -80,25 +93,31 @@ class ApiKeyStore @Inject constructor(
 
     fun hasMinimumConfiguration(): Boolean {
         val hasTmdb = !getTmdbApiKey().isNullOrBlank()
-        val hasLlm = !getGeminiApiKey().isNullOrBlank() || !getOpenAiApiKey().isNullOrBlank()
+        val hasLlm = !getGeminiApiKey().isNullOrBlank() ||
+            !getOpenAiApiKey().isNullOrBlank() ||
+            !getClaudeApiKey().isNullOrBlank()
         return hasTmdb && hasLlm
     }
 
     fun hasLlmProvider(provider: LlmProvider): Boolean = when (provider) {
         LlmProvider.GEMINI -> !getGeminiApiKey().isNullOrBlank()
         LlmProvider.OPENAI -> !getOpenAiApiKey().isNullOrBlank()
+        LlmProvider.CLAUDE -> !getClaudeApiKey().isNullOrBlank()
     }
 
     companion object {
         private const val PREFERENCES_NAME = "movie_scanner_secure_prefs"
         private const val KEY_GEMINI = "gemini_api_key"
         private const val KEY_OPENAI = "openai_api_key"
+        private const val KEY_CLAUDE = "claude_api_key"
         private const val KEY_TMDB = "tmdb_api_key"
         private const val KEY_PREFERRED_LLM = "preferred_llm_provider"
         private const val KEY_GEMINI_MODEL = "gemini_model"
         private const val KEY_OPENAI_MODEL = "openai_model"
+        private const val KEY_CLAUDE_MODEL = "claude_model"
         private const val KEY_TMDB_LANGUAGE = "tmdb_language_override"
         const val FALLBACK_GEMINI_MODEL: String = "gemini-2.5-flash"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+        const val DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
     }
 }
