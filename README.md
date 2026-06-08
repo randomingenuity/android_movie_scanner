@@ -39,7 +39,7 @@ Scan requires a valid TMDB key and at least one LLM key. Settings validates each
 
 ### Settings screenshot
 
-![Settings screen](asset/documentation/progression1.jpg)
+<img src="asset/documentation/progression1.jpg" alt="Settings screen" width="360">
 
 ## Scan flow
 
@@ -55,11 +55,11 @@ Barcodes are decoded on-device; LLMs are used to look up title and year from the
 
 ### Barcode capture screenshot
 
-![Barcode capture screen](asset/documentation/progression2.jpg)
+<img src="asset/documentation/progression2.jpg" alt="Barcode capture screen" width="360">
 
 ### Cover capture screenshot
 
-![Cover capture screen](asset/documentation/progression3.jpg)
+<img src="asset/documentation/progression3.jpg" alt="Cover capture screen" width="360">
 
 ## Loading / identification
 
@@ -91,7 +91,7 @@ When editing a duplicate already in the list, existing metadata (disc type, loca
 
 ### Review screenshot
 
-![Review screen](asset/documentation/progression4.jpg)
+<img src="asset/documentation/progression4.jpg" alt="Review screen" width="360">
 
 ## List
 
@@ -107,7 +107,7 @@ Empty list message: *No features yet. Click "Scan" to get started.*
 
 ### List screenshot
 
-![List screen](asset/documentation/progression5.jpg)
+<img src="asset/documentation/progression5.jpg" alt="List screen" width="360">
 
 ## Export
 
@@ -122,4 +122,4 @@ All fields are quoted. `season_number` is populated for TV entries; other option
 
 ### Export screenshot
 
-![Example of shared data](asset/documentation/progression6.jpg)
+<img src="asset/documentation/progression6.jpg" alt="Example of shared data" width="742">
