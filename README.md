@@ -2,20 +2,6 @@
 
 Android app for scanning physical media barcodes and cover art, identifying titles with bring-your-own-key (BYOK) LLM providers, matching against TMDB, and maintaining an exportable catalog of movies and TV seasons.
 
-## Screenshots
-
-| Settings | Barcode capture |
-| --- | --- |
-| ![Settings screen](asset/documentation/progression1.jpg) | ![Barcode capture screen](asset/documentation/progression2.jpg) |
-
-| Cover capture | Review |
-| --- | --- |
-| ![Cover capture screen](asset/documentation/progression3.jpg) | ![Review screen](asset/documentation/progression4.jpg) |
-
-| List | Shared export |
-| --- | --- |
-| ![List screen](asset/documentation/progression5.jpg) | ![Example of shared data](asset/documentation/progression6.jpg) |
-
 ## Requirements
 
 - Android SDK (API 26+)
@@ -51,6 +37,10 @@ Scan requires a valid TMDB key and at least one LLM key. Settings validates each
 - **TMDB** API key validation and optional **language override**
 - **Preferred LLM** (Gemini, OpenAI, or Claude) with automatic fallback to other configured providers when the primary call fails
 
+### Settings screenshot
+
+![Settings screen](asset/documentation/progression1.jpg)
+
 ## Scan flow
 
 1. **Barcode** (optional): camera opens on the barcode step. Take a photo; ML Kit and ZXing decode UPC/EAN/ISBN from the image. **Skip** moves on without a barcode.
@@ -62,6 +52,14 @@ Scan requires a valid TMDB key and at least one LLM key. Settings validates each
 Failed barcode decode stays on the barcode step with an error (no silent skip to cover).
 
 Barcodes are decoded on-device; LLMs are used to look up title and year from the decoded barcode (and barcode image when available), not to read the barcode itself.
+
+### Barcode capture screenshot
+
+![Barcode capture screen](asset/documentation/progression2.jpg)
+
+### Cover capture screenshot
+
+![Cover capture screen](asset/documentation/progression3.jpg)
 
 ## Loading / identification
 
@@ -91,6 +89,10 @@ Loading messages include **No internet connection** / **Offline scanning is not 
 
 When editing a duplicate already in the list, existing metadata (disc type, location, season, number of discs, and so on) is loaded from that entry before you confirm **Replace**.
 
+### Review screenshot
+
+![Review screen](asset/documentation/progression4.jpg)
+
 ## List
 
 - Items persist in a local **Room** database; newest entries appear first
@@ -103,6 +105,10 @@ When editing a duplicate already in the list, existing metadata (disc type, loca
 
 Empty list message: *No features yet. Click "Scan" to get started.*
 
+### List screenshot
+
+![List screen](asset/documentation/progression5.jpg)
+
 ## Export
 
 - **List** tab: share icon
@@ -113,3 +119,7 @@ Default filename: `YYYYmmdd-HHMM_catalog.csv` (for example `20260607-1430_catalo
 CSV columns: `title`, `year`, `feature_type`, `barcode`, `disc_type`, `location`, `season_number`, `number_of_discs`, `tmdb_url`, `tmdb_id`, `poster_url`
 
 All fields are quoted. `season_number` is populated for TV entries; other optional fields may be empty.
+
+### Export screenshot
+
+![Example of shared data](asset/documentation/progression6.jpg)
