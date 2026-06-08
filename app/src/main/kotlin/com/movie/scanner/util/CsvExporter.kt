@@ -8,7 +8,7 @@ import java.time.format.DateTimeFormatter
 object CsvExporter {
     fun buildDefaultFilename(): String {
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
-        return "${timestamp}_movies.csv"
+        return "${timestamp}_catalog.csv"
     }
 
     fun buildCsv(movies: List<MovieEntity>): String {

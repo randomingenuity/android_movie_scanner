@@ -83,6 +83,6 @@ Loading messages include **No internet connection** / **Offline scanning is not 
 - **List** tab: share icon
 - **Loading** screen: overflow menu → Share list (while waiting on TMDB)
 
-Default filename: `YYYYmmdd-HHMM_movies.csv` (for example `20260607-1430_movies.csv`).
+Default filename: `YYYYmmdd-HHMM_catalog.csv` (for example `20260607-1430_catalog.csv`).
 
 CSV columns: `title`, `year`, `barcode`, `tmdb_url`, `tmdb_id`, `poster_url`

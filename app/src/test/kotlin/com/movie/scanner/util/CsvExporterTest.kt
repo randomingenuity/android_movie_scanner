@@ -11,7 +11,7 @@ class CsvExporterTest {
     fun buildDefaultFilename_usesTimestampPattern() {
         val filename = CsvExporter.buildDefaultFilename()
 
-        assertTrue(filename.matches(Regex("""\d{8}-\d{4}_movies\.csv""")))
+        assertTrue(filename.matches(Regex("""\d{8}-\d{4}_catalog\.csv""")))
     }
 
     @Test
