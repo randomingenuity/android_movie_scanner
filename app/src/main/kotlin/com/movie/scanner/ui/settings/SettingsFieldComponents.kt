@@ -1,14 +1,16 @@
 package com.movie.scanner.ui.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -83,7 +85,6 @@ private fun ValidationStatusIcon(status: FieldValidationStatus) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelDropdownField(
     label: String,
@@ -93,45 +94,24 @@ fun ModelDropdownField(
     onModelSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { isExpanded ->
-            if (enabled) {
-                expanded = isExpanded
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        OutlinedTextField(
-            value = selectedModel,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .fillMaxWidth(),
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            models.forEach { model ->
-                DropdownMenuItem(
-                    text = { Text(model) },
-                    onClick = {
-                        onModelSelected(model)
-                        expanded = false
-                    },
-                )
-            }
+    ReadOnlyDropdownField(
+        label = label,
+        value = selectedModel,
+        enabled = enabled,
+        modifier = modifier,
+    ) { dismissMenu ->
+        models.forEach { model ->
+            DropdownMenuItem(
+                text = { Text(model) },
+                onClick = {
+                    onModelSelected(model)
+                    dismissMenu()
+                },
+            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageDropdownField(
     label: String,
@@ -141,51 +121,103 @@ fun LanguageDropdownField(
     onLanguageSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val displayValue = when {
         selectedCode.isBlank() -> "Device default"
         else -> languages.firstOrNull { language -> language.code == selectedCode }?.displayName ?: selectedCode
     }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { isExpanded ->
-            if (enabled) {
-                expanded = isExpanded
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
-    ) {
+    ReadOnlyDropdownField(
+        label = label,
+        value = displayValue,
+        enabled = enabled,
+        modifier = modifier,
+    ) { dismissMenu ->
+        DropdownMenuItem(
+            text = { Text("Device default") },
+            onClick = {
+                onLanguageSelected("")
+                dismissMenu()
+            },
+        )
+        languages.forEach { language ->
+            DropdownMenuItem(
+                text = { Text("${language.displayName} (${language.code})") },
+                onClick = {
+                    onLanguageSelected(language.code)
+                    dismissMenu()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+fun ProviderDropdownField(
+    label: String,
+    selectedProviderName: String,
+    providerNames: List<String>,
+    onProviderSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ReadOnlyDropdownField(
+        label = label,
+        value = selectedProviderName,
+        enabled = true,
+        modifier = modifier,
+    ) { dismissMenu ->
+        providerNames.forEach { providerName ->
+            DropdownMenuItem(
+                text = { Text(providerName) },
+                onClick = {
+                    onProviderSelected(providerName)
+                    dismissMenu()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReadOnlyDropdownField(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    menuItems: @Composable (dismissMenu: () -> Unit) -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val menuInteractionSource = remember { MutableInteractionSource() }
+    val dismissMenu = { menuExpanded = false }
+    Box(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = displayValue,
+            value = value,
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
             label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .fillMaxWidth(),
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Device default") },
-                onClick = {
-                    onLanguageSelected("")
-                    expanded = false
-                },
-            )
-            languages.forEach { language ->
-                DropdownMenuItem(
-                    text = { Text("${language.displayName} (${language.code})") },
-                    onClick = {
-                        onLanguageSelected(language.code)
-                        expanded = false
-                    },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
                 )
-            }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (enabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = menuInteractionSource,
+                        indication = null,
+                        onClick = { menuExpanded = true },
+                    ),
+            )
+        }
+        DropdownMenu(
+            expanded = menuExpanded && enabled,
+            onDismissRequest = dismissMenu,
+        ) {
+            menuItems(dismissMenu)
         }
     }
 }

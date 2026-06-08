@@ -208,16 +208,24 @@ class ScanViewModel @Inject constructor(
             return false
         }
         val trimmedTitle = title.trim()
+        val trimmedYear = year.trim()
         if (trimmedTitle.isEmpty()) {
             _uiState.update { it.copy(manualEntryError = "Title is required.") }
             return false
         }
-        scanSessionHolder.recordManualCoverEntry(trimmedTitle, year.trim())
+        if (trimmedYear.isEmpty()) {
+            _uiState.update { it.copy(manualEntryError = "Year is required.") }
+            return false
+        }
+        scanSessionHolder.recordManualCoverEntry(trimmedTitle, trimmedYear)
         _uiState.update {
             it.copy(
                 showManualEntryDialog = false,
                 manualEntryError = null,
             )
+        }
+        viewModelScope.launch {
+            captureProcessingEvents.send(CaptureProcessingEvent.NavigateToLoading)
         }
         return true
     }

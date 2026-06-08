@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MovieDao {
-    @Query("SELECT * FROM movies ORDER BY sortOrder ASC")
+    @Query("SELECT * FROM movies ORDER BY sortOrder DESC")
     fun observeMovies(): Flow<List<MovieEntity>>
 
     @Query("SELECT * FROM movies ORDER BY sortOrder ASC")
@@ -45,6 +45,29 @@ interface MovieDao {
         """,
     )
     suspend fun findByTitleAndYear(title: String, year: String): MovieEntity?
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM movies
+            WHERE lower(trim(title)) = lower(trim(:title))
+            AND seasonNumber = :seasonNumber
+            AND featureType = 'TV'
+        )
+        """,
+    )
+    suspend fun existsByTitleAndSeason(title: String, seasonNumber: Int): Boolean
+
+    @Query(
+        """
+        SELECT * FROM movies
+        WHERE lower(trim(title)) = lower(trim(:title))
+        AND seasonNumber = :seasonNumber
+        AND featureType = 'TV'
+        LIMIT 1
+        """,
+    )
+    suspend fun findByTitleAndSeason(title: String, seasonNumber: Int): MovieEntity?
 
     @Query("SELECT MAX(sortOrder) FROM movies")
     suspend fun maxSortOrder(): Int?

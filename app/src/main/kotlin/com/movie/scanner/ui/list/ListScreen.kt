@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,7 @@ import coil.compose.AsyncImage
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.util.BarcodeDecoder
 import com.movie.scanner.util.CsvExporter
+import com.movie.scanner.util.MovieListFormatter
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
@@ -91,6 +93,9 @@ fun ListScreen(
                     Text("Year: ${movie.year}")
                     if (!movie.upc.isNullOrBlank()) {
                         Text(BarcodeDecoder.formatBarcodeLine(movie.upc))
+                    }
+                    MovieListFormatter.buildMetadataLines(movie).forEach { line ->
+                        Text(line)
                     }
                     Text("No TMDB match")
                 }
@@ -153,12 +158,12 @@ fun ListScreen(
                             state = dismissState,
                             enableDismissFromStartToEnd = false,
                             backgroundContent = {
-                                Row(
+                                Box(
                                     modifier = Modifier
                                         .fillMaxSize()
+                                        .clickable { viewModel.deleteMovie(movie.id) }
                                         .padding(horizontal = 24.dp),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    contentAlignment = Alignment.CenterEnd,
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete")
                                 }
@@ -174,6 +179,7 @@ fun ListScreen(
                                             context.startActivity(intent)
                                         }
                                     },
+                                    onDelete = { viewModel.deleteMovie(movie.id) },
                                 )
                             },
                         )
@@ -197,36 +203,53 @@ fun ListScreen(
 private fun MovieRow(
     movie: MovieEntity,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = movie.posterUrl,
-            contentDescription = movie.title,
-            modifier = Modifier.size(48.dp),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = movie.title, style = MaterialTheme.typography.bodyLarge)
-            Text(text = movie.year, style = MaterialTheme.typography.bodyMedium)
-            if (!movie.upc.isNullOrBlank()) {
-                Text(
-                    text = BarcodeDecoder.formatBarcodeLine(movie.upc),
-                    style = MaterialTheme.typography.bodySmall,
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onClick),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AsyncImage(
+                model = movie.posterUrl,
+                contentDescription = movie.title,
+                modifier = Modifier.size(48.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = movie.title, style = MaterialTheme.typography.bodyLarge)
+                Text(text = movie.year, style = MaterialTheme.typography.bodyMedium)
+                if (!movie.upc.isNullOrBlank()) {
+                    Text(
+                        text = BarcodeDecoder.formatBarcodeLine(movie.upc),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                MovieListFormatter.buildMetadataLines(movie).forEach { line ->
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            if (movie.isForceAdded) {
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = { Text("Unmatched") },
                 )
             }
         }
-        if (movie.isForceAdded) {
-            AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text("Unmatched") },
-            )
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete")
         }
     }
 }

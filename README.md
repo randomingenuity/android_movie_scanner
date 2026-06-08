@@ -48,7 +48,7 @@ Failed barcode decode stays on the barcode step with an error (no silent skip to
 
 When a barcode was captured:
 
-1. **Finding movie with barcode** — LLM looks up title/year from the barcode (and barcode image when available).
+1. **Finding with barcode** — LLM looks up title/year from the barcode (and barcode image when available).
 2. **Searching movie in TMDB** — if TMDB returns matches, cover recognition is skipped and Review opens immediately.
 3. If barcode lookup or TMDB search does not find a match, the app falls back to **Extracting title from cover image** and continues from there.
 

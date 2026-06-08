@@ -14,4 +14,9 @@ data class MovieEntity(
     val upc: String?,
     val isForceAdded: Boolean,
     val sortOrder: Int,
+    val featureType: String = FeatureType.MOVIE.label,
+    val discType: String? = null,
+    val location: String? = null,
+    val seasonNumber: Int? = null,
+    val numberOfDiscs: Int? = null,
 )

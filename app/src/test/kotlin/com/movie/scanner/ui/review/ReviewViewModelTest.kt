@@ -1,5 +1,7 @@
 package com.movie.scanner.ui.review
 
+import com.movie.scanner.data.model.FeatureType
+import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.MovieRepository
@@ -42,8 +44,10 @@ class ReviewViewModelTest {
             ),
         )
         every { scanSessionHolder.resolveCapturedUpc() } returns "9781234567890"
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
         coEvery { movieRepository.existsByTitleAndYear(any(), any()) } returns false
+        coEvery { movieRepository.existsByTitleAndSeason(any(), any()) } returns false
     }
 
     @After
@@ -84,6 +88,90 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun init_restoresFeatureTypeFromPreviousEntry() = runTest {
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
+    }
+
+    @Test
+    fun updateFeatureType_remembersSelectionForNextEntry() = runTest {
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        viewModel.updateFeatureType(FeatureType.TV)
+
+        io.mockk.verify { scanSessionHolder.rememberReviewFeatureType(FeatureType.TV) }
+    }
+
+    @Test
+    fun refreshActionState_loadsExistingEntryMetadataWhenDuplicateFound() = runTest {
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.TV.label,
+            discType = "DVD",
+            location = "Shelf B",
+            seasonNumber = 2,
+            numberOfDiscs = 4,
+        )
+        coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
+        coEvery { movieRepository.findByTitleAndSeason("Cover Title", 2) } returns existingMovie
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        viewModel.updateSeasonNumberInput("2")
+        advanceUntilIdle()
+
+        assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
+        assertEquals("DVD", viewModel.uiState.value.discType)
+        assertEquals("Shelf B", viewModel.uiState.value.location)
+        assertEquals("2", viewModel.uiState.value.seasonNumberInput)
+        assertEquals("4", viewModel.uiState.value.numberOfDiscsInput)
+        assertEquals("9781234567890", viewModel.uiState.value.barcode)
+    }
+
+    @Test
+    fun refreshActionState_usesStoredBarcodeWhenScanDidNotCaptureOne() = runTest {
+        every { scanSessionHolder.resolveCapturedUpc() } returns null
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = "Blu-Ray",
+            location = "Shelf A",
+        )
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+        coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        assertEquals("111111111111", viewModel.uiState.value.barcode)
+        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+        assertEquals("Shelf A", viewModel.uiState.value.location)
+    }
+
+    @Test
     fun refreshActionState_showsReplaceWhenMovieAlreadyExists() = runTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
 
@@ -92,7 +180,55 @@ class ReviewViewModelTest {
 
         assertEquals(true, viewModel.uiState.value.showReplaceAdd)
         assertEquals(
-            "Already in list. Add will replace the existing entry.",
+            "Already in list. Replace will replace the existing entry.",
+            viewModel.uiState.value.duplicateMessage,
+        )
+    }
+
+    @Test
+    fun refreshActionState_doesNotMatchTelevisionDuplicateUntilSeasonEntered() = runTest {
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.showReplaceAdd)
+        assertEquals(null, viewModel.uiState.value.duplicateMessage)
+        assertEquals(false, viewModel.uiState.value.isAddEnabled)
+    }
+
+    @Test
+    fun refreshActionState_showsReplaceWhenTelevisionTitleAndSeasonAlreadyExist() = runTest {
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        viewModel.updateSeasonNumberInput("2")
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.showReplaceAdd)
+        assertEquals(true, viewModel.uiState.value.isAddEnabled)
+        assertEquals(
+            "Already in list. Replace will replace the existing entry.",
+            viewModel.uiState.value.duplicateMessage,
+        )
+    }
+
+    @Test
+    fun refreshActionState_showsForceReplaceWhenTitleAndYearAlreadyExist() = runTest {
+        every { scanSessionHolder.initialTmdbResults } returns emptyList()
+        coEvery { movieRepository.existsByTitleAndYear("Cover Title", "2020") } returns true
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.showForceAdd)
+        assertEquals(true, viewModel.uiState.value.showForceReplace)
+        assertEquals(
+            "Already in list. Force Replace will replace the existing entry.",
             viewModel.uiState.value.duplicateMessage,
         )
     }

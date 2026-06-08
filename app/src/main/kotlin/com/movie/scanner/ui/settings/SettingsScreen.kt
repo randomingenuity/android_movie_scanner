@@ -8,12 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -21,9 +17,6 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,7 +34,6 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var providerMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.geminiModelBumpedToast) {
         uiState.geminiModelBumpedToast?.let { message ->
@@ -119,35 +111,15 @@ fun SettingsScreen(
                 enabled = tmdbLanguagesEnabled,
                 onLanguageSelected = viewModel::updateTmdbLanguageOverride,
             )
-            ExposedDropdownMenuBox(
-                expanded = providerMenuExpanded,
-                onExpandedChange = { providerMenuExpanded = !providerMenuExpanded },
-            ) {
-                OutlinedTextField(
-                    value = uiState.preferredLlmProvider.displayName,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Preferred LLM") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerMenuExpanded) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth(),
-                )
-                ExposedDropdownMenu(
-                    expanded = providerMenuExpanded,
-                    onDismissRequest = { providerMenuExpanded = false },
-                ) {
-                    LlmProvider.entries.forEach { provider ->
-                        DropdownMenuItem(
-                            text = { Text(provider.displayName) },
-                            onClick = {
-                                viewModel.updatePreferredProvider(provider)
-                                providerMenuExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
+            ProviderDropdownField(
+                label = "Preferred LLM",
+                selectedProviderName = uiState.preferredLlmProvider.displayName,
+                providerNames = LlmProvider.entries.map { provider -> provider.displayName },
+                onProviderSelected = { providerName ->
+                    val provider = LlmProvider.entries.first { entry -> entry.displayName == providerName }
+                    viewModel.updatePreferredProvider(provider)
+                },
+            )
             uiState.errorMessage?.let { message ->
                 Text(text = message, color = MaterialTheme.colorScheme.error)
             }

@@ -127,7 +127,7 @@ class LoadingViewModel @Inject constructor(
         upc: String,
     ): BarcodeProcessingOutcome {
         barcodeLookupAttempted = true
-        _uiState.value = LoadingUiState(message = "Finding movie with barcode")
+        _uiState.value = LoadingUiState(message = "Finding with barcode")
         val barcodeResult = llmRecognitionRepository.recognizeBarcode(upc, barcodeBitmap)
         if (!networkConnectivityChecker.isConnected()) {
             showOfflineState()
@@ -240,6 +240,10 @@ class LoadingViewModel @Inject constructor(
             return
         }
         val year = scanSessionHolder.manualCoverYear?.trim().orEmpty()
+        if (year.isEmpty()) {
+            showCoverFailure("Year is required for manual entry.")
+            return
+        }
         val barcodeBitmap = scanSessionHolder.barcodeBitmap
         val upc = scanSessionHolder.upc
         barcodeGuess = if (!upc.isNullOrBlank()) {
@@ -251,7 +255,7 @@ class LoadingViewModel @Inject constructor(
         scanSessionHolder.clearBitmaps()
         searchTmdbUntilSuccess(
             title = title,
-            year = year.ifBlank { null },
+            year = year,
             manualRetry = false,
         )
     }

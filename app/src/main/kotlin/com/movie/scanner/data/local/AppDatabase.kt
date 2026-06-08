@@ -6,7 +6,7 @@ import com.movie.scanner.data.model.MovieEntity
 
 @Database(
     entities = [MovieEntity::class],
-    version = 1,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

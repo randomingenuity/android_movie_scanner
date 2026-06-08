@@ -1,7 +1,9 @@
 package com.movie.scanner.data.repository
 
 import com.movie.scanner.data.local.MovieDao
+import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
+import com.movie.scanner.data.model.ReviewItemDetails
 import com.movie.scanner.data.model.TmdbSearchResult
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -16,6 +18,13 @@ import org.junit.Test
 class MovieRepositoryTest {
     private val movieDao = mockk<MovieDao>(relaxed = true)
     private lateinit var movieRepository: MovieRepository
+    private val reviewDetails = ReviewItemDetails(
+        featureType = FeatureType.MOVIE,
+        discType = "Blu-Ray",
+        location = "Shelf 1",
+        seasonNumber = null,
+        numberOfDiscs = null,
+    )
 
     @Before
     fun setUp() {
@@ -40,6 +49,7 @@ class MovieRepositoryTest {
             year = "1999",
             upc = "012345678905",
             match = match,
+            details = reviewDetails,
         )
 
         assertTrue(result.isSuccess)
@@ -51,6 +61,8 @@ class MovieRepositoryTest {
         assertEquals("The Matrix", insertedMovie.captured.title)
         assertEquals(3, insertedMovie.captured.sortOrder)
         assertEquals(false, insertedMovie.captured.isForceAdded)
+        assertEquals("Blu-Ray", insertedMovie.captured.discType)
+        assertEquals("Shelf 1", insertedMovie.captured.location)
     }
 
     @Test
@@ -80,6 +92,7 @@ class MovieRepositoryTest {
             year = "1999",
             upc = "012345678905",
             match = match,
+            details = reviewDetails,
         )
 
         assertTrue(result.isSuccess)
@@ -107,12 +120,20 @@ class MovieRepositoryTest {
             isForceAdded = false,
             sortOrder = 1,
         )
-        coEvery { movieDao.findByTitleAndYear("Mystery Box", "2001") } returns existingMovie
+        coEvery { movieDao.findByTitleAndSeason("Mystery Box", 2) } returns existingMovie
+        val televisionDetails = ReviewItemDetails(
+            featureType = FeatureType.TV,
+            discType = "DVD",
+            location = null,
+            seasonNumber = 2,
+            numberOfDiscs = 3,
+        )
 
         val result = movieRepository.addForceMovie(
             title = "Mystery Box",
             year = "2001",
             upc = "9781234567890",
+            details = televisionDetails,
         )
 
         assertTrue(result.isSuccess)
@@ -123,5 +144,41 @@ class MovieRepositoryTest {
         assertEquals(true, updatedMovie.captured.isForceAdded)
         assertEquals(null, updatedMovie.captured.tmdbId)
         assertEquals("9781234567890", updatedMovie.captured.upc)
+        assertEquals(FeatureType.TV.label, updatedMovie.captured.featureType)
+        assertEquals(2, updatedMovie.captured.seasonNumber)
+        assertEquals(3, updatedMovie.captured.numberOfDiscs)
+    }
+
+    @Test
+    fun addMatchedMovie_insertsNewTelevisionSeasonWhenTitleAndSeasonAreNew() = runTest {
+        val match = TmdbSearchResult(
+            id = 1396,
+            title = "Breaking Bad",
+            year = "2008",
+            posterUrl = null,
+            tmdbUrl = "https://www.themoviedb.org/tv/1396",
+        )
+        val televisionDetails = ReviewItemDetails(
+            featureType = FeatureType.TV,
+            discType = "Blu-Ray",
+            location = null,
+            seasonNumber = 2,
+            numberOfDiscs = 3,
+        )
+        coEvery { movieDao.findByTitleAndSeason("Breaking Bad", 2) } returns null
+        coEvery { movieDao.maxSortOrder() } returns 0
+        coEvery { movieDao.insert(any()) } returns 11L
+
+        val result = movieRepository.addMatchedMovie(
+            title = "Breaking Bad",
+            year = "2010",
+            upc = "012345678905",
+            match = match,
+            details = televisionDetails,
+        )
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 0) { movieDao.update(any()) }
+        coVerify { movieDao.insert(any()) }
     }
 }

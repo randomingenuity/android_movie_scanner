@@ -144,6 +144,13 @@ fun ScanScreen(
     var manualEntryTitle by remember { mutableStateOf("") }
     var manualEntryYear by remember { mutableStateOf("") }
 
+    LaunchedEffect(uiState.showManualEntryDialog) {
+        if (uiState.showManualEntryDialog) {
+            manualEntryTitle = ""
+            manualEntryYear = ""
+        }
+    }
+
     if (uiState.showManualEntryDialog) {
         AlertDialog(
             onDismissRequest = viewModel::dismissManualEntry,
@@ -176,18 +183,20 @@ fun ScanScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (viewModel.submitManualEntry(manualEntryTitle, manualEntryYear)) {
-                            manualEntryTitle = ""
-                            manualEntryYear = ""
-                            onNavigateToLoading()
-                        }
+                        viewModel.submitManualEntry(manualEntryTitle, manualEntryYear)
                     },
                 ) {
                     Text("Continue")
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissManualEntry) {
+                TextButton(
+                    onClick = {
+                        manualEntryTitle = ""
+                        manualEntryYear = ""
+                        viewModel.dismissManualEntry()
+                    },
+                ) {
                     Text("Cancel")
                 }
             },

@@ -31,7 +31,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
-            android:theme="@style/Theme.MovieScanner">
+            android:theme="@style/Theme.MovieScanner"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

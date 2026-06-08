@@ -1,6 +1,7 @@
 package com.movie.scanner.data.session
 
 import android.graphics.Bitmap
+import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import javax.inject.Inject
@@ -33,7 +34,13 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var lastAddedTitle: String? = null
         private set
+    var lastReviewFeatureType: FeatureType = FeatureType.MOVIE
+        private set
     private var coverRetakeRequested: Boolean = false
+
+    fun rememberReviewFeatureType(featureType: FeatureType) {
+        lastReviewFeatureType = featureType
+    }
 
     fun startNewScan() {
         clearBitmaps()
