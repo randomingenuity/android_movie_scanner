@@ -1,7 +1,8 @@
-package com.movie.scanner.ui.scan
+package com.movie.scanner.ui.scanbulk
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -9,21 +10,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,14 +38,16 @@ import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.ui.camera.CameraPreview
 import com.movie.scanner.ui.camera.ShutterButton
 
+/**
+ * Streamlined bulk capture flow: alternate barcode and cover photos per movie.
+ */
 @Composable
-fun ScanScreen(
-    onNavigateToLoading: () -> Unit,
-    viewModel: ScanViewModel = hiltViewModel(),
+fun ScanBulkCaptureScreen(
+    onNavigateToQueue: () -> Unit,
+    viewModel: ScanBulkCaptureViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) ==
@@ -60,6 +58,10 @@ fun ScanScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasCameraPermission = granted
+    }
+
+    BackHandler {
+        viewModel.finishScanning()
     }
 
     DisposableEffect(Unit) {
@@ -73,21 +75,15 @@ fun ScanScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.consumeAddedMessage()?.let { title ->
-            snackbarHostState.showSnackbar("Added $title")
-        }
-    }
-
-    LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(android.Manifest.permission.CAMERA)
         }
     }
 
     LaunchedEffect(viewModel) {
-        viewModel.captureProcessingEventFlow.collect { event ->
-            if (event is CaptureProcessingEvent.NavigateToLoading) {
-                onNavigateToLoading()
+        viewModel.navigationEventFlow.collect { event ->
+            if (event is ScanBulkCaptureEvent.NavigateToQueue) {
+                onNavigateToQueue()
             }
         }
     }
@@ -126,71 +122,13 @@ fun ScanScreen(
     }
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
-    var manualEntryTitle by remember { mutableStateOf("") }
-    var manualEntryYear by remember { mutableStateOf("") }
-
-    LaunchedEffect(uiState.showManualEntryDialog) {
-        if (uiState.showManualEntryDialog) {
-            manualEntryTitle = ""
-            manualEntryYear = ""
-        }
+    val headerLabel = if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+        "Barcode ${uiState.currentPairNumber}"
+    } else {
+        "Cover ${uiState.currentPairNumber}"
     }
 
-    if (uiState.showManualEntryDialog) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissManualEntry,
-            title = { Text("Manual Entry") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = manualEntryTitle,
-                        onValueChange = { manualEntryTitle = it },
-                        label = { Text("Title") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = manualEntryYear,
-                        onValueChange = { manualEntryYear = it },
-                        label = { Text("Year") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    uiState.manualEntryError?.let { errorMessage ->
-                        Text(
-                            text = errorMessage,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.submitManualEntry(manualEntryTitle, manualEntryYear)
-                    },
-                ) {
-                    Text("Continue")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        manualEntryTitle = ""
-                        manualEntryYear = ""
-                        viewModel.dismissManualEntry()
-                    },
-                ) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
+    Scaffold { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             CameraPreview(
                 onImageCaptured = viewModel::processCapturedImage,
@@ -204,29 +142,45 @@ fun ScanScreen(
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 4.dp,
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        text = if (uiState.captureMode == ScanCaptureMode.BARCODE) "Barcode" else "Cover",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        text = uiState.statusMessage,
-                        modifier = Modifier.padding(top = 4.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    uiState.captureErrorMessage?.let { errorMessage ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = errorMessage,
-                            modifier = Modifier.padding(top = 8.dp),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = headerLabel,
+                            style = MaterialTheme.typography.titleLarge,
                         )
-                        Button(
-                            onClick = viewModel::clearCaptureError,
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) {
-                            Text("Retry")
+                        Text(
+                            text = uiState.statusMessage,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        uiState.captureErrorMessage?.let { errorMessage ->
+                            Text(
+                                text = errorMessage,
+                                modifier = Modifier.padding(top = 8.dp),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Button(
+                                onClick = viewModel::clearCaptureError,
+                                modifier = Modifier.padding(top = 8.dp),
+                            ) {
+                                Text("Retry")
+                            }
                         }
+                    }
+                    Button(
+                        onClick = viewModel::finishScanning,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) {
+                        Text("Done With Scanning")
                     }
                 }
             }
@@ -236,34 +190,14 @@ fun ScanScreen(
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 24.dp, vertical = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (uiState.captureMode == ScanCaptureMode.BARCODE) {
-                            Button(onClick = viewModel::skipBarcode) {
-                                Text("Skip")
-                            }
-                        }
-                    }
                     ShutterButton(
                         onClick = {
                             viewModel.beginCaptureProcessing()
                             captureAction.value?.invoke()
                         },
                     )
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        if (uiState.captureMode == ScanCaptureMode.COVER) {
-                            Button(onClick = viewModel::showManualEntry) {
-                                Text("Manual Entry")
-                            }
-                        }
-                    }
                 }
             }
             if (uiState.isProcessingCapture) {
@@ -276,7 +210,7 @@ fun ScanScreen(
                 ) {
                     CircularProgressIndicator()
                     Text(
-                        text = "Processing photo…",
+                        text = "Saving photo…",
                         modifier = Modifier.padding(top = 16.dp),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -285,4 +219,3 @@ fun ScanScreen(
         }
     }
 }
-

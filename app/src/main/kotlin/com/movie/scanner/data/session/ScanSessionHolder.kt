@@ -39,6 +39,58 @@ class ScanSessionHolder @Inject constructor() {
     var lastReviewLocation: String = ""
         private set
     private var coverRetakeRequested: Boolean = false
+    var isBulkProcessing: Boolean = false
+        private set
+    var currentBulkRecordId: Long? = null
+        private set
+    var bulkCoverRelFilepath: String? = null
+        private set
+    var bulkProcessingStopRequested: Boolean = false
+        private set
+    private var bulkQueueResumePending: Boolean = false
+
+    fun signalBulkQueueResume() {
+        bulkQueueResumePending = true
+    }
+
+    fun consumeBulkQueueResume(): Boolean {
+        val resumePending = bulkQueueResumePending
+        bulkQueueResumePending = false
+        return resumePending
+    }
+
+    /**
+     * Marks the active review session as part of a bulk queue item.
+     */
+    fun startBulkItem(recordId: Long, coverRelFilepath: String) {
+        isBulkProcessing = true
+        currentBulkRecordId = recordId
+        bulkCoverRelFilepath = coverRelFilepath
+        bulkProcessingStopRequested = false
+    }
+
+    fun requestStopBulkProcessing() {
+        bulkProcessingStopRequested = true
+    }
+
+    fun finishBulkItem() {
+        isBulkProcessing = false
+        currentBulkRecordId = null
+        bulkCoverRelFilepath = null
+    }
+
+    fun consumeBulkProcessingStopRequested(): Boolean {
+        val stopRequested = bulkProcessingStopRequested
+        bulkProcessingStopRequested = false
+        return stopRequested
+    }
+
+    fun recordBarcodeCaptureForBulk(bitmap: Bitmap) {
+        barcodeBitmap = bitmap
+        upc = null
+        capturedUpc = null
+        barcodeSkipped = false
+    }
 
     fun rememberReviewFeatureType(featureType: FeatureType) {
         lastReviewFeatureType = featureType

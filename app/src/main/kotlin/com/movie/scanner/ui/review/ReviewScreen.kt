@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +48,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
@@ -63,7 +65,7 @@ import com.movie.scanner.util.BarcodeDecoder
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReviewScreen(
-    onFinished: () -> Unit,
+    onFinished: (isBulkProcessing: Boolean) -> Unit,
     viewModel: ReviewViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -101,8 +103,28 @@ fun ReviewScreen(
 
     LaunchedEffect(uiState.finished) {
         if (uiState.finished) {
-            onFinished()
+            onFinished(uiState.finishedFromBulkProcessing)
         }
+    }
+
+    if (uiState.showBulkCoverPreview && uiState.bulkCoverAbsolutePath != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissBulkCoverPreview,
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissBulkCoverPreview) {
+                    Text("Close")
+                }
+            },
+            title = { Text("Cover preview") },
+            text = {
+                AsyncImage(
+                    model = uiState.bulkCoverAbsolutePath,
+                    contentDescription = "Bulk scan cover preview",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit,
+                )
+            },
+        )
     }
 
     if (uiState.showDiscardDialog) {
@@ -138,6 +160,27 @@ fun ReviewScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (uiState.isBulkProcessing) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (uiState.bulkCoverAbsolutePath != null) {
+                        OutlinedButton(onClick = viewModel::showBulkCoverPreview) {
+                            Text("Show Cover")
+                        }
+                    }
+                    Button(
+                        onClick = viewModel::stopBulkProcessing,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) {
+                        Text("Stop Processing")
+                    }
+                }
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 FeatureType.entries.forEachIndexed { index, featureType ->
                     SegmentedButton(

@@ -4,6 +4,7 @@ import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
+import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.ScanSessionHolder
@@ -28,6 +29,7 @@ class ReviewViewModelTest {
     private val scanSessionHolder = mockk<ScanSessionHolder>(relaxed = true)
     private val tmdbRepository = mockk<TmdbRepository>(relaxed = true)
     private val movieRepository = mockk<MovieRepository>(relaxed = true)
+    private val bulkImageRepository = mockk<BulkImageRepository>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -46,6 +48,8 @@ class ReviewViewModelTest {
         every { scanSessionHolder.resolveCapturedUpc() } returns "9781234567890"
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
         every { scanSessionHolder.lastReviewLocation } returns ""
+        every { scanSessionHolder.isBulkProcessing } returns false
+        every { scanSessionHolder.bulkCoverRelFilepath } returns null
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
         coEvery { movieRepository.existsByTitleAndYear(any(), any()) } returns false
         coEvery { movieRepository.existsByTitleAndSeason(any(), any()) } returns false
@@ -58,7 +62,7 @@ class ReviewViewModelTest {
 
     @Test
     fun init_prefillsTitleAndYearFromCoverGuess() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals("Cover Title", viewModel.uiState.value.title)
@@ -70,7 +74,7 @@ class ReviewViewModelTest {
     fun init_fallsBackToBarcodeGuessWhenCoverMissing() = runTest {
         every { scanSessionHolder.coverGuess } returns null
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals("Barcode Title", viewModel.uiState.value.title)
@@ -79,7 +83,7 @@ class ReviewViewModelTest {
 
     @Test
     fun updateBarcode_stripsNewlines() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         val sanitized = viewModel.updateBarcode("9781234567890\r\n")
@@ -92,7 +96,7 @@ class ReviewViewModelTest {
     fun init_restoresLocationFromPreviousEntry() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
@@ -102,7 +106,7 @@ class ReviewViewModelTest {
     fun updateLocation_remembersClearedValue() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         viewModel.updateLocation("")
@@ -115,7 +119,7 @@ class ReviewViewModelTest {
     fun init_restoresFeatureTypeFromPreviousEntry() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
@@ -123,7 +127,7 @@ class ReviewViewModelTest {
 
     @Test
     fun updateFeatureType_remembersSelectionForNextEntry() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         viewModel.updateFeatureType(FeatureType.TV)
@@ -153,7 +157,7 @@ class ReviewViewModelTest {
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
         coEvery { movieRepository.findByTitleAndSeason("Cover Title", 2) } returns existingMovie
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         viewModel.updateSeasonNumberInput("2")
@@ -187,7 +191,7 @@ class ReviewViewModelTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
         coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals("111111111111", viewModel.uiState.value.barcode)
@@ -199,7 +203,7 @@ class ReviewViewModelTest {
     fun refreshActionState_showsReplaceWhenMovieAlreadyExists() = runTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.showReplaceAdd)
@@ -214,7 +218,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         coEvery { movieRepository.existsByTmdbId(1) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals(false, viewModel.uiState.value.showReplaceAdd)
@@ -227,7 +231,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         viewModel.updateSeasonNumberInput("2")
@@ -246,7 +250,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.initialTmdbResults } returns emptyList()
         coEvery { movieRepository.existsByTitleAndYear("Cover Title", "2020") } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository)
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.showForceAdd)

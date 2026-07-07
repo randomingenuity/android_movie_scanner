@@ -3,9 +3,11 @@ package com.movie.scanner.di
 import android.content.Context
 import androidx.room.Room
 import com.movie.scanner.data.local.AppDatabase
+import com.movie.scanner.data.local.BulkUnprocessedImageDao
 import com.movie.scanner.data.local.MIGRATION_1_2
 import com.movie.scanner.data.local.MIGRATION_2_3
 import com.movie.scanner.data.local.MIGRATION_3_4
+import com.movie.scanner.data.local.MIGRATION_4_5
 import com.movie.scanner.data.local.MovieDao
 import com.movie.scanner.data.remote.ClaudeApi
 import com.movie.scanner.data.remote.GeminiApi
@@ -104,9 +106,13 @@ object AppModule {
         AppDatabase::class.java,
         "movie_scanner.db",
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .build()
 
     @Provides
     fun provideMovieDao(database: AppDatabase): MovieDao = database.movieDao()
+
+    @Provides
+    fun provideBulkUnprocessedImageDao(database: AppDatabase): BulkUnprocessedImageDao =
+        database.bulkUnprocessedImageDao()
 }

@@ -2,6 +2,7 @@ package com.movie.scanner.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
@@ -22,6 +23,8 @@ import com.movie.scanner.ui.list.ListScreen
 import com.movie.scanner.ui.loading.LoadingScreen
 import com.movie.scanner.ui.review.ReviewScreen
 import com.movie.scanner.ui.scan.ScanScreen
+import com.movie.scanner.ui.scanbulk.ScanBulkCaptureScreen
+import com.movie.scanner.ui.scanbulk.ScanBulkQueueScreen
 import com.movie.scanner.ui.settings.SettingsScreen
 
 @Composable
@@ -31,6 +34,7 @@ fun MovieScannerNavHost() {
     val currentRoute = backStackEntry?.destination?.route
     val bottomDestinations = listOf(
         AppDestination.Scan,
+        AppDestination.ScanBulkCapture,
         AppDestination.List,
         AppDestination.Settings,
     )
@@ -43,18 +47,22 @@ fun MovieScannerNavHost() {
                     bottomDestinations.forEach { destination ->
                         val label = when (destination) {
                             AppDestination.Scan -> "Scan"
+                            AppDestination.ScanBulkCapture -> "Scan Bulk"
                             AppDestination.List -> "List"
                             AppDestination.Settings -> "Settings"
                             else -> destination.route
                         }
                         val icon = when (destination) {
                             AppDestination.Scan -> Icons.Default.PhotoCamera
+                            AppDestination.ScanBulkCapture -> Icons.Default.Collections
                             AppDestination.List -> Icons.Default.List
                             AppDestination.Settings -> Icons.Default.Settings
                             else -> Icons.Default.List
                         }
                         NavigationBarItem(
-                            selected = currentRoute == destination.route,
+                            selected = currentRoute == destination.route ||
+                                (destination == AppDestination.ScanBulkCapture &&
+                                    currentRoute == AppDestination.ScanBulkQueue.route),
                             onClick = {
                                 navController.navigate(destination.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
@@ -84,26 +92,55 @@ fun MovieScannerNavHost() {
                     },
                 )
             }
+            composable(AppDestination.ScanBulkCapture.route) {
+                ScanBulkCaptureScreen(
+                    onNavigateToQueue = {
+                        navController.navigate(AppDestination.ScanBulkQueue.route)
+                    },
+                )
+            }
+            composable(AppDestination.ScanBulkQueue.route) {
+                ScanBulkQueueScreen(
+                    onNavigateToLoading = {
+                        navController.navigate(AppDestination.Loading.route)
+                    },
+                    onNavigateToCapture = {
+                        navController.popBackStack(AppDestination.ScanBulkCapture.route, false)
+                    },
+                )
+            }
             composable(AppDestination.Loading.route) {
                 LoadingScreen(
                     onNavigateToReview = {
                         navController.navigate(AppDestination.Review.route) {
-                            popUpTo(AppDestination.Scan.route)
+                            popUpTo(AppDestination.Loading.route) {
+                                inclusive = true
+                            }
                         }
                     },
                     onNavigateBackToCamera = {
-                        navController.popBackStack(AppDestination.Scan.route, false)
+                        val returnedToBulkCapture = navController.popBackStack(
+                            AppDestination.ScanBulkCapture.route,
+                            false,
+                        )
+                        if (!returnedToBulkCapture) {
+                            navController.popBackStack(AppDestination.Scan.route, false)
+                        }
                     },
                 )
             }
             composable(AppDestination.Review.route) {
                 ReviewScreen(
-                    onFinished = {
-                        navController.navigate(AppDestination.Scan.route) {
-                            popUpTo(AppDestination.Scan.route) {
-                                inclusive = true
+                    onFinished = { isBulkProcessing ->
+                        if (isBulkProcessing) {
+                            navController.popBackStack(AppDestination.ScanBulkQueue.route, false)
+                        } else {
+                            navController.navigate(AppDestination.Scan.route) {
+                                popUpTo(AppDestination.Scan.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
                             }
-                            launchSingleTop = true
                         }
                     },
                 )

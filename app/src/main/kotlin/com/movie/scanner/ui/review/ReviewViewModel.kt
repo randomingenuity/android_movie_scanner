@@ -7,6 +7,7 @@ import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.ReviewItemDetails
 import com.movie.scanner.data.model.TmdbSearchResult
+import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.ScanSessionHolder
@@ -46,6 +47,10 @@ data class ReviewUiState(
     val location: String = "",
     val seasonNumberInput: String = "",
     val numberOfDiscsInput: String = "",
+    val isBulkProcessing: Boolean = false,
+    val bulkCoverAbsolutePath: String? = null,
+    val showBulkCoverPreview: Boolean = false,
+    val finishedFromBulkProcessing: Boolean = false,
 )
 
 @HiltViewModel
@@ -53,6 +58,7 @@ class ReviewViewModel @Inject constructor(
     private val scanSessionHolder: ScanSessionHolder,
     private val tmdbRepository: TmdbRepository,
     private val movieRepository: MovieRepository,
+    private val bulkImageRepository: BulkImageRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
@@ -71,6 +77,7 @@ class ReviewViewModel @Inject constructor(
         }
         val initialResults = scanSessionHolder.initialTmdbResults
         val capturedBarcode = scanSessionHolder.resolveCapturedUpc()
+        val bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath
         _uiState.value = ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
             location = scanSessionHolder.lastReviewLocation,
@@ -90,6 +97,10 @@ class ReviewViewModel @Inject constructor(
             barcodeSuggestion = barcodeSuggestion,
             tmdbResults = initialResults,
             selectedTmdbResult = initialResults.firstOrNull(),
+            isBulkProcessing = scanSessionHolder.isBulkProcessing,
+            bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
+                bulkImageRepository.resolveAbsolutePath(relativePath)
+            },
         )
         viewModelScope.launch { refreshActionState() }
     }
@@ -253,6 +264,33 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Stops the bulk queue, closes review without saving, and leaves the current item unprocessed.
+     */
+    fun stopBulkProcessing() {
+        viewModelScope.launch {
+            scanSessionHolder.requestStopBulkProcessing()
+            scanSessionHolder.finishBulkItem()
+            scanSessionHolder.finishScan()
+            _uiState.update {
+                it.copy(
+                    finished = true,
+                    addedTitle = null,
+                    isBulkProcessing = false,
+                    finishedFromBulkProcessing = true,
+                )
+            }
+        }
+    }
+
+    fun showBulkCoverPreview() {
+        _uiState.update { it.copy(showBulkCoverPreview = true) }
+    }
+
+    fun dismissBulkCoverPreview() {
+        _uiState.update { it.copy(showBulkCoverPreview = false) }
+    }
+
     fun requestDiscard() {
         _uiState.update { it.copy(showDiscardDialog = true) }
     }
@@ -262,23 +300,64 @@ class ReviewViewModel @Inject constructor(
     }
 
     fun confirmDiscard() {
-        scanSessionHolder.finishScan()
-        _uiState.update { it.copy(finished = true, addedTitle = null) }
+        viewModelScope.launch {
+            val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
+            completeBulkItemIfNeeded()
+            scanSessionHolder.finishScan()
+            _uiState.update {
+                it.copy(
+                    finished = true,
+                    addedTitle = null,
+                    isBulkProcessing = false,
+                    finishedFromBulkProcessing = finishedFromBulkProcessing,
+                )
+            }
+        }
     }
 
     fun skipMovie() {
-        scanSessionHolder.finishScan()
-        _uiState.update { it.copy(finished = true, addedTitle = null) }
+        viewModelScope.launch {
+            val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
+            completeBulkItemIfNeeded()
+            scanSessionHolder.finishScan()
+            _uiState.update {
+                it.copy(
+                    finished = true,
+                    addedTitle = null,
+                    isBulkProcessing = false,
+                    finishedFromBulkProcessing = finishedFromBulkProcessing,
+                )
+            }
+        }
     }
 
     private fun finishAfterAdd(title: String) {
-        scanSessionHolder.rememberReviewLocation(_uiState.value.location)
-        scanSessionHolder.finishScan(addedTitle = title)
-        _uiState.update {
-            it.copy(
-                finished = true,
-                addedTitle = title,
-            )
+        viewModelScope.launch {
+            val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
+            completeBulkItemIfNeeded()
+            scanSessionHolder.rememberReviewLocation(_uiState.value.location)
+            scanSessionHolder.finishScan(addedTitle = title)
+            _uiState.update {
+                it.copy(
+                    finished = true,
+                    addedTitle = title,
+                    isBulkProcessing = false,
+                    finishedFromBulkProcessing = finishedFromBulkProcessing,
+                )
+            }
+        }
+    }
+
+    private suspend fun completeBulkItemIfNeeded() {
+        if (!scanSessionHolder.isBulkProcessing) {
+            return
+        }
+        val recordId = scanSessionHolder.currentBulkRecordId ?: return
+        val shouldResumeQueue = !scanSessionHolder.bulkProcessingStopRequested
+        bulkImageRepository.markProcessed(recordId)
+        scanSessionHolder.finishBulkItem()
+        if (shouldResumeQueue) {
+            scanSessionHolder.signalBulkQueueResume()
         }
     }
 
