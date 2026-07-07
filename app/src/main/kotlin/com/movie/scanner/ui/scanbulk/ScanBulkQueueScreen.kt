@@ -10,13 +10,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -25,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +44,9 @@ import coil.compose.AsyncImage
 
 /** Fixed width for the processed-status column so the header stays on one line. */
 private val BulkQueueProcessedColumnWidth = 84.dp
+
+private val BulkQueueProcessedCheckColor = Color(0xFF2E7D32)
+private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
 
 /**
  * Lists bulk-captured image pairs and drives sequential processing into the normal scan flow.
@@ -90,6 +101,7 @@ fun ScanBulkQueueScreen(
                         row = row,
                         onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
                         onCoverClick = { viewModel.showImagePreview(row.coverRelFilepath) },
+                        onDeleteClick = { viewModel.deleteRecord(row.id) },
                     )
                     HorizontalDivider()
                 }
@@ -160,6 +172,32 @@ private fun BulkQueueHeaderRow() {
             maxLines = 1,
             overflow = TextOverflow.Clip,
         )
+        Box(modifier = Modifier.size(48.dp))
+    }
+}
+
+/**
+ * Shows processed vs pending status with a checkmark or timer icon.
+ */
+@Composable
+private fun BulkQueueProcessedStatusIcon(wasProcessed: Boolean) {
+    Box(
+        modifier = Modifier.width(BulkQueueProcessedColumnWidth),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        if (wasProcessed) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Processed",
+                tint = BulkQueueProcessedCheckColor,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Timer,
+                contentDescription = "Pending",
+                tint = BulkQueuePendingTimerColor,
+            )
+        }
     }
 }
 
@@ -168,6 +206,7 @@ private fun BulkQueueDataRow(
     row: ScanBulkQueueRow,
     onBarcodeClick: () -> Unit,
     onCoverClick: () -> Unit,
+    onDeleteClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -202,12 +241,14 @@ private fun BulkQueueDataRow(
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
         )
-        Text(
-            text = if (row.wasProcessed) "Yes" else "No",
-            modifier = Modifier.width(BulkQueueProcessedColumnWidth),
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.End,
-        )
+        BulkQueueProcessedStatusIcon(wasProcessed = row.wasProcessed)
+        IconButton(onClick = onDeleteClick) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 

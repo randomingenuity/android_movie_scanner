@@ -114,6 +114,25 @@ class ScanBulkQueueViewModel @Inject constructor(
     fun resolveAbsolutePath(relativeFilepath: String): String =
         bulkImageRepository.resolveAbsolutePath(relativeFilepath)
 
+    /**
+     * Deletes a queue row from storage and clears processing state when that row was active.
+     */
+    fun deleteRecord(recordId: Long) {
+        viewModelScope.launch {
+            if (_uiState.value.processingRecordId == recordId) {
+                shouldContinueProcessing = false
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        processingRecordId = null,
+                        processingRecordNumber = null,
+                    )
+                }
+            }
+            bulkImageRepository.deleteRecord(recordId)
+        }
+    }
+
     private suspend fun processNextRecord() {
         if (!shouldContinueProcessing) {
             _uiState.update {

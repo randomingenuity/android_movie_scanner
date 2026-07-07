@@ -29,4 +29,10 @@ interface BulkUnprocessedImageDao {
 
     @Query("UPDATE images_bulk_unprocessed SET was_processed = 1 WHERE id = :recordId")
     suspend fun markProcessed(recordId: Long)
+
+    @Query("SELECT * FROM images_bulk_unprocessed WHERE id = :recordId")
+    suspend fun getById(recordId: Long): BulkUnprocessedImageEntity?
+
+    @Query("DELETE FROM images_bulk_unprocessed WHERE id = :recordId")
+    suspend fun deleteById(recordId: Long)
 }
