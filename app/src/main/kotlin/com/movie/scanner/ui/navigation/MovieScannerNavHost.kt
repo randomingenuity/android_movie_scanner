@@ -107,6 +107,15 @@ fun MovieScannerNavHost() {
                     onNavigateToCapture = {
                         navController.popBackStack(AppDestination.ScanBulkCapture.route, false)
                     },
+                    onNavigateToScan = {
+                        navController.navigate(AppDestination.Scan.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(AppDestination.Loading.route) {

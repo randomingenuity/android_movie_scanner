@@ -24,6 +24,8 @@ import javax.inject.Inject
 
 sealed interface ScanBulkQueueEvent {
     data object NavigateToLoading : ScanBulkQueueEvent
+
+    data object NavigateToScan : ScanBulkQueueEvent
 }
 
 data class ScanBulkQueueRow(
@@ -77,6 +79,23 @@ class ScanBulkQueueViewModel @Inject constructor(
         shouldContinueProcessing = true
         viewModelScope.launch {
             processNextRecord()
+        }
+    }
+
+    /**
+     * Stops queue processing and navigates back to the main Scan tab.
+     */
+    fun exitToScan() {
+        shouldContinueProcessing = false
+        _uiState.update {
+            it.copy(
+                isProcessing = false,
+                processingRecordId = null,
+                processingRecordNumber = null,
+            )
+        }
+        viewModelScope.launch {
+            navigationEvents.send(ScanBulkQueueEvent.NavigateToScan)
         }
     }
 

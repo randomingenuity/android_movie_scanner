@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -58,6 +59,7 @@ private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
 fun ScanBulkQueueScreen(
     onNavigateToLoading: () -> Unit,
     onNavigateToCapture: () -> Unit,
+    onNavigateToScan: () -> Unit,
     viewModel: ScanBulkQueueViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -73,8 +75,9 @@ fun ScanBulkQueueScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.navigationEventFlow.collect { event ->
-            if (event is ScanBulkQueueEvent.NavigateToLoading) {
-                onNavigateToLoading()
+            when (event) {
+                ScanBulkQueueEvent.NavigateToLoading -> onNavigateToLoading()
+                ScanBulkQueueEvent.NavigateToScan -> onNavigateToScan()
             }
         }
     }
@@ -129,8 +132,21 @@ fun ScanBulkQueueScreen(
                 } else {
                     val hasUnprocessed = uiState.records.any { row -> !row.wasProcessed }
                     if (hasUnprocessed) {
-                        Button(onClick = viewModel::startProcessing) {
-                            Text("Process")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Button(onClick = viewModel::startProcessing) {
+                                Text("Process")
+                            }
+                            Button(
+                                onClick = viewModel::exitToScan,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) {
+                                Text("Exit")
+                            }
                         }
                     }
                 }
