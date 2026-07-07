@@ -44,6 +44,9 @@ import coil.compose.AsyncImage
 
 /** Fixed width for the processed-status column so the header stays on one line. */
 private val BulkQueueProcessedColumnWidth = 84.dp
+private val BulkQueueRowHorizontalPadding = 12.dp
+private val BulkQueueRowVerticalPadding = 4.dp
+private val BulkQueueDeleteColumnWidth = 36.dp
 
 private val BulkQueueProcessedCheckColor = Color(0xFF2E7D32)
 private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
@@ -141,8 +144,12 @@ private fun BulkQueueHeaderRow() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(
+                horizontal = BulkQueueRowHorizontalPadding,
+                vertical = BulkQueueRowVerticalPadding,
+            ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = "ID",
@@ -172,7 +179,7 @@ private fun BulkQueueHeaderRow() {
             maxLines = 1,
             overflow = TextOverflow.Clip,
         )
-        Box(modifier = Modifier.size(48.dp))
+        Box(modifier = Modifier.width(BulkQueueDeleteColumnWidth))
     }
 }
 
@@ -211,7 +218,10 @@ private fun BulkQueueDataRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(
+                horizontal = BulkQueueRowHorizontalPadding,
+                vertical = BulkQueueRowVerticalPadding,
+            ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -242,7 +252,10 @@ private fun BulkQueueDataRow(
             style = MaterialTheme.typography.bodyMedium,
         )
         BulkQueueProcessedStatusIcon(wasProcessed = row.wasProcessed)
-        IconButton(onClick = onDeleteClick) {
+        IconButton(
+            onClick = onDeleteClick,
+            modifier = Modifier.size(BulkQueueDeleteColumnWidth),
+        ) {
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete",
