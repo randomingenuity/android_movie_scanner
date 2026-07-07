@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -26,11 +27,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+
+/** Fixed width for the processed-status column so the header stays on one line. */
+private val BulkQueueProcessedColumnWidth = 84.dp
 
 /**
  * Lists bulk-captured image pairs and drives sequential processing into the normal scan flow.
@@ -149,9 +154,11 @@ private fun BulkQueueHeaderRow() {
         )
         Text(
             text = "Processed?",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(BulkQueueProcessedColumnWidth),
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
         )
     }
 }
@@ -197,7 +204,7 @@ private fun BulkQueueDataRow(
         )
         Text(
             text = if (row.wasProcessed) "Yes" else "No",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(BulkQueueProcessedColumnWidth),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.End,
         )
