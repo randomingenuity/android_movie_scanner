@@ -5,8 +5,11 @@ import android.graphics.Bitmap
 import com.movie.scanner.data.local.BulkUnprocessedImageDao
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -19,6 +22,7 @@ class BulkImageRepository @Inject constructor(
     private val bulkUnprocessedImageDao: BulkUnprocessedImageDao,
 ) {
     private val workingDirectoryName = "bulk_scan_work"
+    private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun observeAllRecords(): Flow<List<BulkUnprocessedImageEntity>> =
         bulkUnprocessedImageDao.observeAllOrderedById()
@@ -42,6 +46,31 @@ class BulkImageRepository @Inject constructor(
         File(workingDirectory, record.barcodeRelFilepath).delete()
         File(workingDirectory, record.coverRelFilepath).delete()
         bulkUnprocessedImageDao.deleteById(recordId)
+    }
+
+    /**
+     * Persists a barcode/cover pair on a background thread without blocking the caller.
+     */
+    fun enqueueCapturedPair(
+        barcodeBitmap: Bitmap,
+        coverBitmap: Bitmap,
+        onFailure: ((String) -> Unit)? = null,
+    ) {
+        saveScope.launch {
+            try {
+                saveCapturedPair(
+                    barcodeBitmap = barcodeBitmap,
+                    coverBitmap = coverBitmap,
+                )
+            } catch (exception: Exception) {
+                val message = exception.message ?: "Could not save captured images."
+                onFailure?.let { handler ->
+                    withContext(Dispatchers.Main) {
+                        handler(message)
+                    }
+                }
+            }
+        }
     }
 
     /**

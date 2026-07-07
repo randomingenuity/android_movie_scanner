@@ -95,7 +95,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
         }
     }
 
-    private suspend fun onBarcodeCaptured(bitmap: Bitmap) {
+    private fun onBarcodeCaptured(bitmap: Bitmap) {
         pendingBarcodeBitmap?.let { previousBitmap ->
             if (!previousBitmap.isRecycled) {
                 previousBitmap.recycle()
@@ -112,7 +112,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
         }
     }
 
-    private suspend fun onCoverCaptured(bitmap: Bitmap) {
+    private fun onCoverCaptured(bitmap: Bitmap) {
         val barcodeBitmap = pendingBarcodeBitmap
         if (barcodeBitmap == null) {
             if (!bitmap.isRecycled) {
@@ -129,9 +129,14 @@ class ScanBulkCaptureViewModel @Inject constructor(
             return
         }
         pendingBarcodeBitmap = null
-        bulkImageRepository.saveCapturedPair(
+        bulkImageRepository.enqueueCapturedPair(
             barcodeBitmap = barcodeBitmap,
             coverBitmap = bitmap,
+            onFailure = { message ->
+                _uiState.update { state ->
+                    state.copy(captureErrorMessage = message)
+                }
+            },
         )
         val nextPairCount = _uiState.value.pairCount + 1
         _uiState.update {

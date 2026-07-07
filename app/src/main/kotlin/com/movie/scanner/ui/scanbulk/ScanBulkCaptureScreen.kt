@@ -210,7 +210,7 @@ fun ScanBulkCaptureScreen(
                 ) {
                     CircularProgressIndicator()
                     Text(
-                        text = "Saving photo…",
+                        text = "Processing photo…",
                         modifier = Modifier.padding(top = 16.dp),
                         style = MaterialTheme.typography.bodyLarge,
                     )
