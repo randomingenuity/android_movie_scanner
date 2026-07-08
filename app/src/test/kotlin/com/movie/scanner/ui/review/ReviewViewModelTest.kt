@@ -51,6 +51,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.resolveCapturedUpc() } returns "9781234567890"
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
         every { scanSessionHolder.lastReviewLocation } returns ""
+        every { scanSessionHolder.bulkBatchLocation } returns ""
         every { scanSessionHolder.isBulkProcessing } returns false
         every { scanSessionHolder.bulkCoverRelFilepath } returns null
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
@@ -104,6 +105,46 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
+    }
+
+    @Test
+    fun init_prefillsBulkBatchLocationDuringBulkProcessing() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
+        every { scanSessionHolder.lastReviewLocation } returns ""
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        assertEquals("Shelf A", viewModel.uiState.value.location)
+    }
+
+    @Test
+    fun refreshActionState_prefillsBulkBatchLocationWhenDuplicateHasNoLocation() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = "Blu-Ray",
+            location = null,
+        )
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+        coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        assertEquals("Shelf A", viewModel.uiState.value.location)
+        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
     }
 
     @Test

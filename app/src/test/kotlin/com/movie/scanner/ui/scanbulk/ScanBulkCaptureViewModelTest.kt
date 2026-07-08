@@ -111,7 +111,7 @@ class ScanBulkCaptureViewModelTest {
 
         assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
         assertFalse(viewModel.uiState.value.showLocationDialog)
-        verify { scanSessionHolder.rememberReviewLocation("Shelf A") }
+        verify { scanSessionHolder.rememberBulkBatchLocation("Shelf A") }
     }
 
     @Test

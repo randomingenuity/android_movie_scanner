@@ -38,6 +38,8 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var lastReviewLocation: String = ""
         private set
+    var bulkBatchLocation: String = ""
+        private set
     private var coverRetakeRequested: Boolean = false
     var isBulkProcessing: Boolean = false
         private set
@@ -111,6 +113,14 @@ class ScanSessionHolder @Inject constructor() {
     }
 
     fun rememberReviewLocation(location: String) {
+        lastReviewLocation = location
+    }
+
+    /**
+     * Saves the shelf or bin name for the current bulk capture batch and pre-fills review forms.
+     */
+    fun rememberBulkBatchLocation(location: String) {
+        bulkBatchLocation = location
         lastReviewLocation = location
     }
 

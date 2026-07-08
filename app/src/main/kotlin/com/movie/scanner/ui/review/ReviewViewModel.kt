@@ -117,7 +117,7 @@ class ReviewViewModel @Inject constructor(
         val bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath
         _uiState.value = ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
-            location = scanSessionHolder.lastReviewLocation,
+            location = resolveDefaultReviewLocation(),
             title = title,
             year = year,
             barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
@@ -456,7 +456,14 @@ class ReviewViewModel @Inject constructor(
         viewModelScope.launch {
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
             completeBulkItemIfNeeded()
-            scanSessionHolder.rememberReviewLocation(_uiState.value.location)
+            if (finishedFromBulkProcessing) {
+                val savedLocation = _uiState.value.location
+                if (savedLocation.isNotBlank()) {
+                    scanSessionHolder.rememberReviewLocation(savedLocation)
+                }
+            } else {
+                scanSessionHolder.rememberReviewLocation(_uiState.value.location)
+            }
             scanSessionHolder.finishScan(addedTitle = title)
             _uiState.update {
                 it.copy(
@@ -670,6 +677,35 @@ class ReviewViewModel @Inject constructor(
                 },
             )
         }
+        applyBulkBatchLocationPrefill()
+    }
+
+    private fun resolveDefaultReviewLocation(): String {
+        if (scanSessionHolder.isBulkProcessing && scanSessionHolder.bulkBatchLocation.isNotBlank()) {
+            return scanSessionHolder.bulkBatchLocation
+        }
+
+        return scanSessionHolder.lastReviewLocation
+    }
+
+    /**
+     * Re-applies the bulk batch location when duplicate checks leave the field blank.
+     */
+    private fun applyBulkBatchLocationPrefill() {
+        if (!scanSessionHolder.isBulkProcessing) {
+            return
+        }
+        val batchLocation = scanSessionHolder.bulkBatchLocation
+        if (batchLocation.isBlank()) {
+            return
+        }
+        _uiState.update { state ->
+            if (state.location.isBlank()) {
+                state.copy(location = batchLocation)
+            } else {
+                state
+            }
+        }
     }
 
     private fun parseEnteredSeasonNumber(state: ReviewUiState): Int? {
@@ -707,12 +743,18 @@ class ReviewViewModel @Inject constructor(
         }
         loadedExistingEntryKey = entryKey
         val featureType = FeatureType.fromLabel(existingMovie.featureType)
+        val storedLocation = existingMovie.location.orEmpty()
+        val batchLocationFallback = if (scanSessionHolder.isBulkProcessing) {
+            scanSessionHolder.bulkBatchLocation
+        } else {
+            ""
+        }
         scanSessionHolder.rememberReviewFeatureType(featureType)
         _uiState.update {
             it.copy(
                 featureType = featureType,
                 discType = existingMovie.discType,
-                location = existingMovie.location.orEmpty(),
+                location = storedLocation.ifBlank { batchLocationFallback },
                 seasonNumberInput = existingMovie.seasonNumber?.toString().orEmpty(),
                 numberOfDiscsInput = existingMovie.numberOfDiscs?.toString().orEmpty(),
                 barcode = it.barcode.takeIf { barcode -> barcode.isNotBlank() }
@@ -730,7 +772,7 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 featureType = scanSessionHolder.lastReviewFeatureType,
                 discType = null,
-                location = scanSessionHolder.lastReviewLocation,
+                location = resolveDefaultReviewLocation(),
                 numberOfDiscsInput = "",
             )
         }

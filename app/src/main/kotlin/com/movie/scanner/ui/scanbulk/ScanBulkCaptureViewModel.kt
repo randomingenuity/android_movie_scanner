@@ -49,7 +49,9 @@ class ScanBulkCaptureViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
-            bulkLocation = scanSessionHolder.lastReviewLocation,
+            bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
+                scanSessionHolder.lastReviewLocation
+            },
         ),
     )
     val uiState: StateFlow<ScanBulkCaptureUiState> = _uiState.asStateFlow()
@@ -83,7 +85,9 @@ class ScanBulkCaptureViewModel @Inject constructor(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             pairCount = if (isRescanMode) 0 else _uiState.value.pairCount,
             currentPairNumber = if (isRescanMode) 1 else _uiState.value.pairCount + 1,
-            bulkLocation = scanSessionHolder.lastReviewLocation,
+            bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
+                scanSessionHolder.lastReviewLocation
+            },
             isRescanMode = isRescanMode,
             statusMessage = if (isRescanMode) {
                 "Rescan the barcode"
@@ -126,7 +130,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
      * Saves the bulk location for later review forms and shows it on the capture header.
      */
     fun saveBulkLocation(location: String) {
-        scanSessionHolder.rememberReviewLocation(location)
+        scanSessionHolder.rememberBulkBatchLocation(location)
         _uiState.update {
             it.copy(
                 bulkLocation = location,
