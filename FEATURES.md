@@ -11,8 +11,9 @@
 - Header shows **Barcode N** / **Cover N** for the current pair.
 - **Done** (top right) is always available to open the bulk queue, including items from earlier sessions.
 - **Location** (beside Done when no batch location is set) opens a prompt to name the shelf or bin for this batch; once saved, the location name appears as a clickable link in place of the button and pre-fills the Location field on each review form during bulk processing.
-- Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Processed? (checkmark or timer), delete (trash icon per row). Rows are sorted by ID ascending; **Clear Done** (top right) removes all processed rows and their images.
-- **Process** runs each unprocessed pair through the same identify → review → add flow as single Scan; **Scan** (to its right) returns to bulk capture to add more pairs.
+- Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Status (checkmark when reviewed, orange download while recognizing, green timer when recognition is ready, yellow timer while waiting), delete (trash icon per row). Rows are sorted by ID ascending; **Clear Done** (top right) removes all processed rows and their images.
+- After each barcode/cover pair is saved, recognition (LLM + TMDB) runs automatically in the background; results are stored on the queue row as JSON.
+- **Process** walks unprocessed pairs through review → add using the stored recognition data (no loading screen); **Scan** (to its right) returns to bulk capture to add more pairs (new pairs are recognized automatically as they are saved).
 - During processing, a spinner shows the current record ID; Review puts **Stop Processing** in the top bar, plus **Show Cover** and **Rescan** (opens the camera to replace the current pair, re-identify, and return to review on the same queue item).
 
 ## List

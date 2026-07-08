@@ -15,12 +15,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class BulkImageRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val bulkUnprocessedImageDao: BulkUnprocessedImageDao,
+    private val bulkRecognitionProcessorProvider: Provider<BulkRecognitionProcessor>,
 ) {
     private val workingDirectoryName = "bulk_scan_work"
     private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -76,6 +78,7 @@ class BulkImageRepository @Inject constructor(
                     barcodeBitmap = barcodeBitmap,
                     coverBitmap = coverBitmap,
                 )
+                bulkRecognitionProcessorProvider.get().scheduleRecognition()
             } catch (exception: Exception) {
                 val message = exception.message ?: "Could not save captured images."
                 onFailure?.let { handler ->
@@ -127,6 +130,8 @@ class BulkImageRepository @Inject constructor(
         }
         bulkUnprocessedImageDao.getById(recordId)
             ?: throw IllegalStateException("Bulk record $recordId disappeared after rescan.")
+    }.also {
+        bulkRecognitionProcessorProvider.get().scheduleRecognition()
     }
 
     suspend fun saveCapturedPair(

@@ -8,6 +8,7 @@ import com.movie.scanner.data.local.MIGRATION_1_2
 import com.movie.scanner.data.local.MIGRATION_2_3
 import com.movie.scanner.data.local.MIGRATION_3_4
 import com.movie.scanner.data.local.MIGRATION_4_5
+import com.movie.scanner.data.local.MIGRATION_5_6
 import com.movie.scanner.data.local.MovieDao
 import com.movie.scanner.data.remote.ClaudeApi
 import com.movie.scanner.data.remote.GeminiApi
@@ -106,7 +107,7 @@ object AppModule {
         AppDatabase::class.java,
         "movie_scanner.db",
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .build()
 
     @Provides

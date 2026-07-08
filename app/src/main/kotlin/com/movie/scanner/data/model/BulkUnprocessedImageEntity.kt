@@ -18,4 +18,6 @@ data class BulkUnprocessedImageEntity(
     val coverRelFilepath: String,
     @ColumnInfo(name = "was_processed")
     val wasProcessed: Boolean = false,
+    @ColumnInfo(name = "processing_results_json")
+    val processingResultsJson: String? = null,
 )

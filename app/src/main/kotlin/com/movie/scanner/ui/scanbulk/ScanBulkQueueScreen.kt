@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,27 +44,29 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 
-/** Fixed width for the processed-status column so the header stays on one line. */
-private val BulkQueueProcessedColumnWidth = 84.dp
+/** Fixed width for the status column so the header stays on one line. */
+private val BulkQueueStatusColumnWidth = 84.dp
 private val BulkQueueRowHorizontalPadding = 12.dp
 private val BulkQueueRowVerticalPadding = 4.dp
 private val BulkQueueDeleteColumnWidth = 36.dp
 
 private val BulkQueueProcessedCheckColor = Color(0xFF2E7D32)
 private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
+private val BulkQueueRecognizingDownloadColor = Color(0xFFEF6C00)
+private val BulkQueueReadyTimerColor = Color(0xFF2E7D32)
 
 /**
- * Lists bulk-captured image pairs and drives sequential processing into the normal scan flow.
+ * Lists bulk-captured image pairs and drives sequential review using pre-fetched recognition data.
  */
 @Composable
 fun ScanBulkQueueScreen(
-    onNavigateToLoading: () -> Unit,
+    onNavigateToReview: () -> Unit,
     onNavigateToCapture: () -> Unit,
     onNavigateToScan: () -> Unit,
     viewModel: ScanBulkQueueViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val hasDoneRecords = uiState.records.any { row -> row.wasProcessed }
+    val hasDoneRecords = uiState.records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
 
     BackHandler {
         viewModel.prepareForBulkCapture()
@@ -78,7 +81,7 @@ fun ScanBulkQueueScreen(
     LaunchedEffect(viewModel) {
         viewModel.navigationEventFlow.collect { event ->
             when (event) {
-                ScanBulkQueueEvent.NavigateToLoading -> onNavigateToLoading()
+                ScanBulkQueueEvent.NavigateToReview -> onNavigateToReview()
                 ScanBulkQueueEvent.NavigateToScan -> onNavigateToScan()
             }
         }
@@ -147,7 +150,9 @@ fun ScanBulkQueueScreen(
                         )
                     }
                 } else {
-                    val hasUnprocessed = uiState.records.any { row -> !row.wasProcessed }
+                    val hasUnprocessed = uiState.records.any { row ->
+                        row.status != BulkQueueItemStatus.PROCESSED
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -215,8 +220,8 @@ private fun BulkQueueHeaderRow() {
             style = MaterialTheme.typography.labelLarge,
         )
         Text(
-            text = "Processed?",
-            modifier = Modifier.width(BulkQueueProcessedColumnWidth),
+            text = "Status",
+            modifier = Modifier.width(BulkQueueStatusColumnWidth),
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.End,
             maxLines = 1,
@@ -227,26 +232,43 @@ private fun BulkQueueHeaderRow() {
 }
 
 /**
- * Shows processed vs pending status with a checkmark or timer icon.
+ * Shows queue status with checkmark, timer, or download icons.
  */
 @Composable
-private fun BulkQueueProcessedStatusIcon(wasProcessed: Boolean) {
+private fun BulkQueueStatusIcon(status: BulkQueueItemStatus) {
     Box(
-        modifier = Modifier.width(BulkQueueProcessedColumnWidth),
+        modifier = Modifier.width(BulkQueueStatusColumnWidth),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        if (wasProcessed) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Processed",
-                tint = BulkQueueProcessedCheckColor,
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Timer,
-                contentDescription = "Pending",
-                tint = BulkQueuePendingTimerColor,
-            )
+        when (status) {
+            BulkQueueItemStatus.PROCESSED -> {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Processed",
+                    tint = BulkQueueProcessedCheckColor,
+                )
+            }
+            BulkQueueItemStatus.RECOGNIZING -> {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = "Recognizing",
+                    tint = BulkQueueRecognizingDownloadColor,
+                )
+            }
+            BulkQueueItemStatus.READY -> {
+                Icon(
+                    imageVector = Icons.Default.Timer,
+                    contentDescription = "Ready for review",
+                    tint = BulkQueueReadyTimerColor,
+                )
+            }
+            BulkQueueItemStatus.PENDING -> {
+                Icon(
+                    imageVector = Icons.Default.Timer,
+                    contentDescription = "Pending recognition",
+                    tint = BulkQueuePendingTimerColor,
+                )
+            }
         }
     }
 }
@@ -294,7 +316,7 @@ private fun BulkQueueDataRow(
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
         )
-        BulkQueueProcessedStatusIcon(wasProcessed = row.wasProcessed)
+        BulkQueueStatusIcon(status = row.status)
         IconButton(
             onClick = onDeleteClick,
             modifier = Modifier.size(BulkQueueDeleteColumnWidth),

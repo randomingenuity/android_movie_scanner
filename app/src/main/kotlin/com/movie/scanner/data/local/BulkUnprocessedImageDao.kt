@@ -35,10 +35,39 @@ interface BulkUnprocessedImageDao {
 
     @Query(
         """
+        SELECT * FROM images_bulk_unprocessed
+        WHERE was_processed = 0
+          AND processing_results_json IS NULL
+        ORDER BY id ASC
+        """,
+    )
+    suspend fun listUnrecognizedOrderedById(): List<BulkUnprocessedImageEntity>
+
+    @Query(
+        """
+        UPDATE images_bulk_unprocessed
+        SET processing_results_json = :processingResultsJson
+        WHERE id = :recordId
+        """,
+    )
+    suspend fun updateProcessingResultsJson(recordId: Long, processingResultsJson: String)
+
+    @Query(
+        """
+        UPDATE images_bulk_unprocessed
+        SET processing_results_json = NULL
+        WHERE id = :recordId
+        """,
+    )
+    suspend fun clearProcessingResultsJson(recordId: Long)
+
+    @Query(
+        """
         UPDATE images_bulk_unprocessed
         SET barcode_rel_filepath = :barcodeRelFilepath,
             cover_rel_filepath = :coverRelFilepath,
-            created_at_timestamp = :createdAtTimestamp
+            created_at_timestamp = :createdAtTimestamp,
+            processing_results_json = NULL
         WHERE id = :recordId
         """,
     )

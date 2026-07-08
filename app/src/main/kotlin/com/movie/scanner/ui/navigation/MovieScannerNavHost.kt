@@ -135,8 +135,8 @@ fun MovieScannerNavHost(
             }
             composable(AppDestination.ScanBulkQueue.route) {
                 ScanBulkQueueScreen(
-                    onNavigateToLoading = {
-                        navController.navigate(AppDestination.Loading.route)
+                    onNavigateToReview = {
+                        navController.navigate(AppDestination.Review.route)
                     },
                     onNavigateToCapture = {
                         navController.navigate(AppDestination.ScanBulkCapture.route) {
