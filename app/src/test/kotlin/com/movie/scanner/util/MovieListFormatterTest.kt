@@ -35,9 +35,46 @@ class MovieListFormatterTest {
                 "Barcode" to "9781234567890",
                 "Disc type" to "Blu-Ray",
                 "Location" to "Shelf A",
-                "Season" to "",
                 "Number of discs" to "2",
                 "TMDB ID" to "603",
+                "Force added" to "No",
+            ),
+            detailFields,
+        )
+    }
+
+    @Test
+    fun buildDetailFields_includesSeasonForTelevision() {
+        val movie = MovieEntity(
+            id = 8L,
+            title = "Breaking Bad",
+            year = "2008",
+            tmdbId = 1396,
+            tmdbUrl = "https://www.themoviedb.org/tv/1396",
+            posterUrl = null,
+            upc = null,
+            isForceAdded = false,
+            sortOrder = 1,
+            featureType = FeatureType.TV.label,
+            discType = "Blu-Ray",
+            location = "Shelf B",
+            seasonNumber = 2,
+            numberOfDiscs = 4,
+        )
+
+        val detailFields = MovieListFormatter.buildDetailFields(movie)
+
+        assertEquals(
+            listOf(
+                "Title" to "Breaking Bad",
+                "Year" to "2008",
+                "Feature type" to "TV",
+                "Barcode" to "",
+                "Disc type" to "Blu-Ray",
+                "Location" to "Shelf B",
+                "Season" to "2",
+                "Number of discs" to "4",
+                "TMDB ID" to "1396",
                 "Force added" to "No",
             ),
             detailFields,

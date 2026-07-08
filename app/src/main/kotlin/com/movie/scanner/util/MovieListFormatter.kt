@@ -6,25 +6,29 @@ import com.movie.scanner.data.model.MovieEntity
 object MovieListFormatter {
     /**
      * Label/value pairs for the list detail overlay (catalog fields and force-added status; URLs omitted).
+     * Type-specific fields match the review form: Season appears only for TV.
      */
     fun buildDetailFields(movie: MovieEntity): List<Pair<String, String>> {
         val featureType = FeatureType.fromLabel(movie.featureType)
-        return listOf(
+        val detailFields = mutableListOf(
             "Title" to movie.title,
             "Year" to movie.year,
             "Feature type" to movie.featureType,
             "Barcode" to movie.upc.orEmpty(),
             "Disc type" to movie.discType.orEmpty(),
             "Location" to movie.location.orEmpty(),
-            "Season" to if (featureType == FeatureType.TV) {
-                movie.seasonNumber?.toString().orEmpty()
-            } else {
-                ""
-            },
-            "Number of discs" to movie.numberOfDiscs?.toString().orEmpty(),
-            "TMDB ID" to movie.tmdbId?.toString().orEmpty(),
-            "Force added" to if (movie.isForceAdded) "Yes" else "No",
         )
+
+        // TV-only fields (same visibility rules as the review form).
+        if (featureType == FeatureType.TV) {
+            detailFields.add("Season" to movie.seasonNumber?.toString().orEmpty())
+        }
+
+        detailFields.add("Number of discs" to movie.numberOfDiscs?.toString().orEmpty())
+        detailFields.add("TMDB ID" to movie.tmdbId?.toString().orEmpty())
+        detailFields.add("Force added" to if (movie.isForceAdded) "Yes" else "No")
+
+        return detailFields
     }
 
     fun buildMetadataLines(movie: MovieEntity): List<String> {
