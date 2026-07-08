@@ -131,14 +131,19 @@ fun ScanBulkQueueScreen(
                     }
                 } else {
                     val hasUnprocessed = uiState.records.any { row -> !row.wasProcessed }
-                    if (hasUnprocessed) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (hasUnprocessed) {
                             Button(onClick = viewModel::startProcessing) {
                                 Text("Process")
                             }
+                        }
+                        Button(onClick = onNavigateToCapture) {
+                            Text("Scan")
+                        }
+                        if (hasUnprocessed) {
                             Button(
                                 onClick = viewModel::exitToScan,
                                 colors = ButtonDefaults.buttonColors(
