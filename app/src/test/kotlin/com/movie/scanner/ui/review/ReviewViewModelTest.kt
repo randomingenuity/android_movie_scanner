@@ -83,6 +83,16 @@ class ReviewViewModelTest {
 
         assertEquals("Barcode Title", viewModel.uiState.value.title)
         assertEquals("2019", viewModel.uiState.value.year)
+        assertTrue(viewModel.uiState.value.barcodeUsedForTitle)
+    }
+
+    @Test
+    fun init_doesNotMarkBarcodeUsedForTitleWhenCoverProvidesTitle() = runTest {
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        assertEquals("Cover Title", viewModel.uiState.value.extractedCoverTitle)
+        assertEquals(false, viewModel.uiState.value.barcodeUsedForTitle)
     }
 
     @Test

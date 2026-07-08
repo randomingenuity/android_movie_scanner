@@ -270,6 +270,8 @@ fun ReviewScreen(
                     Text(
                         text = if (uiState.extractedCoverTitle.isNotBlank()) {
                             "Cover title: ${uiState.extractedCoverTitle}"
+                        } else if (uiState.barcodeUsedForTitle) {
+                            "Cover title: (not used)"
                         } else {
                             "Cover title: (not detected)"
                         },

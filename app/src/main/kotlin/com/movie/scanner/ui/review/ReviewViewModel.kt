@@ -34,6 +34,7 @@ data class ReviewUiState(
     val year: String = "",
     val barcode: String = "",
     val extractedCoverTitle: String = "",
+    val barcodeUsedForTitle: Boolean = false,
     val barcodeUsageMessage: String? = null,
     val barcodeLlmMessage: String = "",
     val barcodeSuggestion: MovieGuess? = null,
@@ -115,6 +116,10 @@ class ReviewViewModel @Inject constructor(
         val initialResults = scanSessionHolder.initialTmdbResults
         val capturedBarcode = scanSessionHolder.resolveCapturedUpc()
         val bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath
+        val barcodeUsedForTitle = wasBarcodeUsedForTitle(
+            coverGuess = coverGuess,
+            barcodeGuess = barcodeGuess,
+        )
         _uiState.value = ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
             location = resolveDefaultReviewLocation(),
@@ -122,6 +127,7 @@ class ReviewViewModel @Inject constructor(
             year = year,
             barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
             extractedCoverTitle = coverGuess?.title?.trim().orEmpty(),
+            barcodeUsedForTitle = barcodeUsedForTitle,
             barcodeUsageMessage = buildBarcodeUsageMessage(
                 upc = capturedBarcode,
                 coverGuess = coverGuess,
@@ -562,6 +568,18 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
+    /**
+     * True when the review title came from barcode lookup because cover OCR did not produce a title.
+     */
+    private fun wasBarcodeUsedForTitle(
+        coverGuess: MovieGuess?,
+        barcodeGuess: MovieGuess?,
+    ): Boolean {
+        val coverTitle = coverGuess?.title?.trim().orEmpty()
+        val barcodeTitle = barcodeGuess?.title?.trim().orEmpty()
+        return coverTitle.isBlank() && barcodeTitle.isNotBlank()
+    }
+
     private fun buildBarcodeUsageMessage(
         upc: String?,
         coverGuess: MovieGuess?,
@@ -570,11 +588,9 @@ class ReviewViewModel @Inject constructor(
         if (upc.isNullOrBlank()) {
             return null
         }
-        val coverTitle = coverGuess?.title?.trim().orEmpty()
         val coverYear = coverGuess?.year?.trim().orEmpty()
-        val barcodeTitle = barcodeGuess?.title?.trim().orEmpty()
         val barcodeYear = barcodeGuess?.year?.trim().orEmpty()
-        val usedForTitle = coverTitle.isBlank() && barcodeTitle.isNotBlank()
+        val usedForTitle = wasBarcodeUsedForTitle(coverGuess, barcodeGuess)
         val usedForYear = coverYear.isBlank() && barcodeYear.isNotBlank()
         return when {
             usedForTitle && usedForYear -> "Barcode was used to find the title and year."
