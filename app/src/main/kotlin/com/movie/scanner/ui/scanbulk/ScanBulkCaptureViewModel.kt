@@ -10,6 +10,7 @@ import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BarcodeDecoder
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 sealed interface ScanBulkCaptureEvent {
@@ -60,6 +62,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
     private var barcodeScanner: BarcodeScanner? = null
     private var pendingBarcodeBitmap: Bitmap? = null
     private var rescanRecordId: Long? = null
+    private var rescanCompletionInProgress = false
 
     override fun onCleared() {
         barcodeScanner?.close()
@@ -257,6 +260,9 @@ class ScanBulkCaptureViewModel @Inject constructor(
      * Clears a stale processing overlay when the capture screen becomes visible again.
      */
     fun onCaptureScreenResumed() {
+        if (rescanCompletionInProgress) {
+            return
+        }
         if (_uiState.value.isProcessingCapture) {
             _uiState.update { it.copy(isProcessingCapture = false) }
         }
@@ -290,6 +296,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             }
             return
         }
+        rescanCompletionInProgress = true
         viewModelScope.launch {
             try {
                 val updatedRecord = bulkImageRepository.replaceCapturedPair(
@@ -310,6 +317,8 @@ class ScanBulkCaptureViewModel @Inject constructor(
                 onCaptureFailed(
                     exception.message ?: "Could not save the rescanned images.",
                 )
+            } finally {
+                rescanCompletionInProgress = false
             }
         }
     }
@@ -329,10 +338,12 @@ class ScanBulkCaptureViewModel @Inject constructor(
             recordId = recordId,
             coverRelFilepath = coverRelativeFilepath,
         )
-        val decodedBarcode = BarcodeDecoder.decodeFromBitmap(
-            bitmap = barcodeBitmap,
-            barcodeScanner = resolveBarcodeScanner(),
-        )
+        val decodedBarcode = withContext(Dispatchers.Default) {
+            BarcodeDecoder.decodeFromBitmap(
+                bitmap = barcodeBitmap,
+                barcodeScanner = resolveBarcodeScanner(),
+            )
+        }
         if (!decodedBarcode.isNullOrBlank()) {
             scanSessionHolder.recordBarcodeCapture(decodedBarcode, barcodeBitmap)
         } else {

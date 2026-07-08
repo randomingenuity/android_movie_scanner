@@ -16,8 +16,11 @@ import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -126,7 +129,8 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
-    fun processCapturedImage_rescanMode_replacesRecordAndNavigatesToLoading() = runTest {
+    fun processCapturedImage_rescanMode_replacesRecordAndNavigatesToLoading() = runBlocking {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         mockkObject(BarcodeDecoder)
         every { BarcodeDecoder.buildBarcodeScanner() } returns mockk(relaxed = true)
         every { BarcodeDecoder.decodeFromBitmap(any(), any()) } returns "9781234567890"
@@ -155,9 +159,10 @@ class ScanBulkCaptureViewModelTest {
         }
         viewModel.prepareScreen()
         viewModel.processCapturedImage(barcodeBitmap)
-        advanceUntilIdle()
         viewModel.processCapturedImage(coverBitmap)
-        advanceUntilIdle()
+        while (navigationEvents.isEmpty()) {
+            delay(10)
+        }
 
         assertEquals(listOf(ScanBulkCaptureEvent.NavigateToLoading), navigationEvents)
         verify { scanSessionHolder.clearBulkRescan() }
