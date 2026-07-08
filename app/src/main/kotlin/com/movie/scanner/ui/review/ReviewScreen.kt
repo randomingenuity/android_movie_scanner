@@ -317,7 +317,7 @@ fun ReviewScreen(
                     }
                 }
             }
-            uiState.tmdbResults.singleOrNull()?.let { matchedResult ->
+            uiState.selectedTmdbResult?.let { matchedResult ->
                 item(key = "open_matched_link") {
                     ReviewOpenMatchedLink(
                         tmdbUrl = matchedResult.tmdbUrl,
@@ -599,7 +599,7 @@ private fun ReviewNumberOfDiscsField(
 }
 
 /**
- * Opens the auto-applied TMDB match in the default browser when recognition returned one result.
+ * Opens the selected TMDB match in the default browser (auto-selected on load or picked from results).
  */
 @Composable
 private fun ReviewOpenMatchedLink(
