@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
@@ -52,7 +55,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalUriHandler
@@ -61,6 +69,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -650,6 +659,37 @@ private fun ReviewDiscTypeField(
 
 private val TmdbResultTableRowHeight = 36.dp
 private const val TmdbResultTableMaxVisibleRows = 3
+private val TmdbResultTableScrollbarWidth = 4.dp
+private val TmdbResultTableScrollbarMinThumbHeight = 24.dp
+
+/**
+ * Draws a vertical scrollbar thumb on the trailing edge for a [ScrollState]-driven list.
+ */
+private fun Modifier.drawVerticalScrollbar(
+    scrollState: ScrollState,
+    thumbColor: Color,
+    scrollbarWidth: Dp = TmdbResultTableScrollbarWidth,
+): Modifier = drawWithContent {
+    drawContent()
+    if (scrollState.maxValue == 0) {
+        return@drawWithContent
+    }
+
+    val scrollbarWidthPixels = scrollbarWidth.toPx()
+    val viewportHeight = size.height
+    val contentHeight = viewportHeight + scrollState.maxValue
+    val thumbHeight = (viewportHeight / contentHeight * viewportHeight)
+        .coerceAtLeast(TmdbResultTableScrollbarMinThumbHeight.toPx())
+    val scrollRange = viewportHeight - thumbHeight
+    val thumbOffset = scrollRange * scrollState.value / scrollState.maxValue
+
+    drawRoundRect(
+        color = thumbColor,
+        topLeft = Offset(size.width - scrollbarWidthPixels, thumbOffset),
+        size = Size(scrollbarWidthPixels, thumbHeight),
+        cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
+    )
+}
 
 /**
  * Compact TMDB pick list: Name and Year columns, Open icon per row, scroll when more than three results.
@@ -661,8 +701,11 @@ private fun TmdbResultsSelectionTable(
     onSelect: (TmdbSearchResult) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val scrollState = rememberScrollState()
     val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
     val tableBodyHeight = TmdbResultTableRowHeight * visibleRowCount
+    val scrollEnabled = results.size > TmdbResultTableMaxVisibleRows
+    val scrollbarThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -687,20 +730,36 @@ private fun TmdbResultsSelectionTable(
             Box(modifier = Modifier.width(40.dp))
         }
         HorizontalDivider()
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(tableBodyHeight),
-            userScrollEnabled = results.size > TmdbResultTableMaxVisibleRows,
+                .height(tableBodyHeight)
+                .then(
+                    if (scrollEnabled) {
+                        Modifier.drawVerticalScrollbar(
+                            scrollState = scrollState,
+                            thumbColor = scrollbarThumbColor,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
-            items(results, key = { result -> result.id }) { result ->
-                TmdbResultTableRow(
-                    result = result,
-                    selected = selectedResultId == result.id,
-                    onSelect = { onSelect(result) },
-                    onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                )
-                HorizontalDivider()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState, enabled = scrollEnabled)
+                    .padding(end = if (scrollEnabled) 8.dp else 0.dp),
+            ) {
+                results.forEach { result ->
+                    TmdbResultTableRow(
+                        result = result,
+                        selected = selectedResultId == result.id,
+                        onSelect = { onSelect(result) },
+                        onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }
