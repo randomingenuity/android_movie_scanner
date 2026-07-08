@@ -1,4 +1,6 @@
 /captures/
+/.cursor/fulfillment-session.json
+/.cursor/fulfillment-task.json
 /.idea
 /build/
 /app/build/

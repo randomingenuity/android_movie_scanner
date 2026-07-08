@@ -9,6 +9,7 @@ import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BulkProcessingResultsJson
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -119,5 +120,39 @@ class ScanBulkQueueViewModelTest {
             )
         }
         collectorJob.cancel()
+    }
+
+    @Test
+    fun deleteRecord_deletesQueueRowThroughRepository() = runTest {
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+        advanceUntilIdle()
+
+        viewModel.deleteRecord(9L)
+        advanceUntilIdle()
+
+        coVerify { bulkImageRepository.deleteRecord(9L) }
+    }
+
+    @Test
+    fun clearDoneRecords_deletesProcessedRowsThroughRepository() = runTest {
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+        advanceUntilIdle()
+
+        viewModel.clearDoneRecords()
+        advanceUntilIdle()
+
+        coVerify { bulkImageRepository.deleteProcessedRecords() }
     }
 }
