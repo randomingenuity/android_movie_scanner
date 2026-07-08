@@ -48,6 +48,8 @@ class ScanBulkCaptureViewModelTest {
         every { scanSessionHolder.lastReviewLocation } returns ""
         every { scanSessionHolder.lastReviewDiscType } returns null
         every { scanSessionHolder.bulkBatchDiscType } returns null
+        every { scanSessionHolder.bulkBatchLocation } returns ""
+        every { scanSessionHolder.bulkDefaultsPromptHandled } returns false
         every { scanSessionHolder.resolveBulkRescanRecordId() } returns null
         every { barcodeBitmap.isRecycled } returns false
         every { coverBitmap.isRecycled } returns false
@@ -57,6 +59,56 @@ class ScanBulkCaptureViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkObject(BarcodeDecoder)
+    }
+
+    @Test
+    fun prepareScreen_showsDefaultsPromptWhenBatchDefaultsAreUnset() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+
+        assertTrue(viewModel.uiState.value.showBulkDefaultsPrompt)
+    }
+
+    @Test
+    fun prepareScreen_skipsDefaultsPromptWhenBatchDefaultsAreSet() = runTest {
+        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+
+        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
+    }
+
+    @Test
+    fun dismissBulkDefaultsPrompt_marksPromptHandledAndClosesDialog() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+
+        viewModel.dismissBulkDefaultsPrompt()
+
+        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
+        verify { scanSessionHolder.markBulkDefaultsPromptHandled() }
+    }
+
+    @Test
+    fun acceptBulkDefaultsSetup_opensDiscTypeThenLocationPrompts() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+
+        viewModel.acceptBulkDefaultsSetup()
+
+        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
+        assertTrue(viewModel.uiState.value.showDiscTypeDialog)
+
+        viewModel.dismissDiscTypeDialog()
+
+        assertTrue(viewModel.uiState.value.showLocationDialog)
+
+        viewModel.dismissLocationDialog()
+
+        assertFalse(viewModel.uiState.value.bulkDefaultsSetupPending)
+        verify { scanSessionHolder.markBulkDefaultsPromptHandled() }
     }
 
     @Test

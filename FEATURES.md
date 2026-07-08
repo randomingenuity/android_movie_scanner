@@ -8,7 +8,7 @@
 
 ## Scan Bulk
 
-- **Scan Bulk** tab: opens the bulk queue when unprocessed pairs remain from an earlier session; otherwise opens bulk capture. Capture barcode and cover photos for many movies in sequence without stopping to identify each one.
+- **Scan Bulk** tab: opens the bulk queue when unprocessed pairs remain from an earlier session; otherwise opens bulk capture. On first capture entry each session, if batch disc type or location is unset, a prompt offers to set them before scanning.
 - Header shows **Barcode N** / **Cover N** for the current pair.
 - **Done** (top right) is always available to open the bulk queue, including items from earlier sessions.
 - **Disc Type** (left of Location when no batch disc type is set) opens a picker with the same options as the review form; once saved, the disc type appears as a clickable link and pre-fills the Disc Type field on each review form during bulk processing.

@@ -68,13 +68,16 @@ fun ScanBulkCaptureScreen(
         hasCameraPermission = granted
     }
 
-    BackHandler(enabled = uiState.showDiscTypeDialog) {
+    BackHandler(enabled = uiState.showBulkDefaultsPrompt) {
+        viewModel.dismissBulkDefaultsPrompt()
+    }
+    BackHandler(enabled = uiState.showDiscTypeDialog && !uiState.showBulkDefaultsPrompt) {
         viewModel.dismissDiscTypeDialog()
     }
-    BackHandler(enabled = uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
+    BackHandler(enabled = uiState.showLocationDialog && !uiState.showDiscTypeDialog && !uiState.showBulkDefaultsPrompt) {
         viewModel.dismissLocationDialog()
     }
-    BackHandler(enabled = !uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
+    BackHandler(enabled = !uiState.showBulkDefaultsPrompt && !uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
         if (uiState.isRescanMode) {
             viewModel.cancelRescan()
         } else {
@@ -165,6 +168,35 @@ fun ScanBulkCaptureScreen(
         if (uiState.showLocationDialog) {
             locationDraft = uiState.bulkLocation
         }
+    }
+
+    if (uiState.showBulkDefaultsPrompt) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissBulkDefaultsPrompt,
+            text = {
+                Text("Your defaults are not set for this session. Set now?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = viewModel::acceptBulkDefaultsSetup,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ),
+                ) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = viewModel::dismissBulkDefaultsPrompt,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text("No")
+                }
+            },
+        )
     }
 
     if (uiState.showDiscTypeDialog) {

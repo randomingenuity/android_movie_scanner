@@ -44,6 +44,8 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var bulkBatchDiscType: String? = null
         private set
+    var bulkDefaultsPromptHandled: Boolean = false
+        private set
     private var coverRetakeRequested: Boolean = false
     var isBulkProcessing: Boolean = false
         private set
@@ -138,6 +140,13 @@ class ScanSessionHolder @Inject constructor() {
     fun rememberBulkBatchDiscType(discType: String?) {
         bulkBatchDiscType = discType
         lastReviewDiscType = discType
+    }
+
+    /**
+     * Records that the bulk defaults setup prompt was shown for the current capture session.
+     */
+    fun markBulkDefaultsPromptHandled() {
+        bulkDefaultsPromptHandled = true
     }
 
     fun startNewScan() {
