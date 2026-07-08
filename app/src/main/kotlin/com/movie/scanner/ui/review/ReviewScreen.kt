@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -10,13 +11,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -24,7 +28,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -48,15 +54,15 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Size
 import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.TmdbSearchResult
@@ -394,21 +400,21 @@ fun ReviewScreen(
                 }
             }
             if (uiState.tmdbResults.size > 1) {
-                item(key = "tmdb_results_header") {
-                    Text(
-                        text = "Confirm movie selection:",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                items(
-                    items = uiState.tmdbResults,
-                    key = { result -> result.id },
-                ) { result ->
-                    TmdbResultRow(
-                        result = result,
-                        selected = uiState.selectedTmdbResult?.id == result.id,
-                        onSelect = { viewModel.selectTmdbResult(result) },
-                    )
+                item(key = "tmdb_results") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Confirm movie selection:",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        TmdbResultsSelectionTable(
+                            results = uiState.tmdbResults,
+                            selectedResultId = uiState.selectedTmdbResult?.id,
+                            onSelect = viewModel::selectTmdbResult,
+                        )
+                    }
                 }
             }
             item(key = "disc_type_field") {
@@ -598,41 +604,117 @@ private fun ReviewDiscTypeField(
     }
 }
 
+private val TmdbResultTableRowHeight = 36.dp
+private const val TmdbResultTableMaxVisibleRows = 3
+
+/**
+ * Compact TMDB pick list: Name and Year columns, Open icon per row, scroll when more than three results.
+ */
 @Composable
-private fun TmdbResultRow(
+private fun TmdbResultsSelectionTable(
+    results: List<TmdbSearchResult>,
+    selectedResultId: Int?,
+    onSelect: (TmdbSearchResult) -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
+    val tableBodyHeight = TmdbResultTableRowHeight * visibleRowCount
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TmdbResultTableRowHeight)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Name",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "Year",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.width(48.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(modifier = Modifier.width(40.dp))
+        }
+        HorizontalDivider()
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(tableBodyHeight),
+            userScrollEnabled = results.size > TmdbResultTableMaxVisibleRows,
+        ) {
+            items(results, key = { result -> result.id }) { result ->
+                TmdbResultTableRow(
+                    result = result,
+                    selected = selectedResultId == result.id,
+                    onSelect = { onSelect(result) },
+                    onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+/**
+ * One selectable TMDB result row with an Open action that launches the TMDB page in the browser.
+ */
+@Composable
+private fun TmdbResultTableRow(
     result: TmdbSearchResult,
     selected: Boolean,
     onSelect: () -> Unit,
+    onOpenTmdb: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val posterRequest = remember(result.posterUrl) {
-        ImageRequest.Builder(context)
-            .data(result.posterUrl)
-            .size(Size(96, 144))
-            .build()
+    val backgroundColor = if (selected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surface
     }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onSelect)
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .height(TmdbResultTableRowHeight)
+            .background(backgroundColor)
+            .padding(start = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = posterRequest,
-            contentDescription = result.title,
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .padding(end = 4.dp),
-            contentScale = ContentScale.Crop,
-        )
-        Column {
-            Text(text = result.title, style = MaterialTheme.typography.bodyLarge)
-            Text(text = result.year, style = MaterialTheme.typography.bodyMedium)
-            if (selected) {
-                Text(text = "Selected", style = MaterialTheme.typography.labelSmall)
-            }
+                .weight(1f)
+                .clickable(onClick = onSelect),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = result.title,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = result.year,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.width(48.dp),
+                maxLines = 1,
+            )
+        }
+        IconButton(
+            onClick = onOpenTmdb,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = "Open",
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

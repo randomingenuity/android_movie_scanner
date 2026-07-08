@@ -1,8 +1,5 @@
 package com.movie.scanner.ui.list
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,25 +8,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,17 +35,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.movie.scanner.data.model.MovieEntity
-import com.movie.scanner.util.BarcodeDecoder
 import com.movie.scanner.util.CsvExporter
-import com.movie.scanner.util.MovieListFormatter
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
+private val ListRowHorizontalPadding = 12.dp
+private val ListRowVerticalPadding = 8.dp
+private val ListActionColumnWidth = 40.dp
+
+/**
+ * Saved-movie list with export, per-row TMDB open, and delete actions.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListScreen(
@@ -57,9 +59,9 @@ fun ListScreen(
 ) {
     val movies by viewModel.movies.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     var showClearDialog by remember { mutableStateOf(false) }
-    var detailMovie by remember { mutableStateOf<MovieEntity?>(null) }
 
     if (showClearDialog) {
         AlertDialog(
@@ -79,30 +81,6 @@ fun ListScreen(
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
                     Text("Cancel")
-                }
-            },
-        )
-    }
-
-    detailMovie?.let { movie ->
-        AlertDialog(
-            onDismissRequest = { detailMovie = null },
-            title = { Text(movie.title) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Year: ${movie.year}")
-                    if (!movie.upc.isNullOrBlank()) {
-                        Text(BarcodeDecoder.formatBarcodeLine(movie.upc))
-                    }
-                    MovieListFormatter.buildMetadataLines(movie).forEach { line ->
-                        Text(line)
-                    }
-                    Text("No TMDB match")
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { detailMovie = null }) {
-                    Text("Close")
                 }
             },
         )
@@ -142,47 +120,18 @@ fun ListScreen(
                     modifier = Modifier.padding(24.dp),
                 )
             } else {
+                ListHeaderRow()
+                HorizontalDivider()
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(movies, key = { it.id }) { movie ->
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            confirmValueChange = { value ->
-                                if (value == SwipeToDismissBoxValue.EndToStart) {
-                                    viewModel.deleteMovie(movie.id)
-                                    true
-                                } else {
-                                    false
-                                }
+                    items(movies, key = { movie -> movie.id }) { movie ->
+                        ListMovieRow(
+                            movie = movie,
+                            onOpenTmdb = {
+                                movie.tmdbUrl?.let { url -> uriHandler.openUri(url) }
                             },
+                            onDelete = { viewModel.deleteMovie(movie.id) },
                         )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            enableDismissFromStartToEnd = false,
-                            backgroundContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clickable { viewModel.deleteMovie(movie.id) }
-                                        .padding(horizontal = 24.dp),
-                                    contentAlignment = Alignment.CenterEnd,
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete")
-                                }
-                            },
-                            content = {
-                                MovieRow(
-                                    movie = movie,
-                                    onClick = {
-                                        if (movie.isForceAdded || movie.tmdbUrl.isNullOrBlank()) {
-                                            detailMovie = movie
-                                        } else {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(movie.tmdbUrl))
-                                            context.startActivity(intent)
-                                        }
-                                    },
-                                    onDelete = { viewModel.deleteMovie(movie.id) },
-                                )
-                            },
-                        )
+                        HorizontalDivider()
                     }
                 }
             }
@@ -200,56 +149,81 @@ fun ListScreen(
 }
 
 @Composable
-private fun MovieRow(
-    movie: MovieEntity,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-) {
+private fun ListHeaderRow() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(
+                horizontal = ListRowHorizontalPadding,
+                vertical = ListRowVerticalPadding,
+            ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onClick),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Text(
+            text = "Title",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Text(
+            text = "Year",
+            modifier = Modifier.width(56.dp),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Box(modifier = Modifier.width(ListActionColumnWidth))
+        Box(modifier = Modifier.width(ListActionColumnWidth))
+    }
+}
+
+@Composable
+private fun ListMovieRow(
+    movie: MovieEntity,
+    onOpenTmdb: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val hasTmdbUrl = !movie.tmdbUrl.isNullOrBlank()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = ListRowHorizontalPadding,
+                vertical = ListRowVerticalPadding,
+            ),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = movie.title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = movie.year,
+            modifier = Modifier.width(56.dp),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        IconButton(
+            onClick = onOpenTmdb,
+            enabled = hasTmdbUrl,
+            modifier = Modifier.size(ListActionColumnWidth),
         ) {
-            AsyncImage(
-                model = movie.posterUrl,
-                contentDescription = movie.title,
-                modifier = Modifier.size(48.dp),
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = "Open in TMDB",
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = movie.title, style = MaterialTheme.typography.bodyLarge)
-                Text(text = movie.year, style = MaterialTheme.typography.bodyMedium)
-                if (!movie.upc.isNullOrBlank()) {
-                    Text(
-                        text = BarcodeDecoder.formatBarcodeLine(movie.upc),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                MovieListFormatter.buildMetadataLines(movie).forEach { line ->
-                    Text(
-                        text = line,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            if (movie.isForceAdded) {
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text("Unmatched") },
-                )
-            }
         }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "Delete")
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(ListActionColumnWidth),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
