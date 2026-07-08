@@ -24,6 +24,8 @@ class MovieRepository @Inject constructor(
     suspend fun existsByTitleAndYear(title: String, year: String): Boolean =
         movieDao.existsByTitleAndYear(title, year)
 
+    suspend fun findById(movieId: Long): MovieEntity? = movieDao.findById(movieId)
+
     suspend fun findByTmdbId(tmdbId: Int): MovieEntity? = movieDao.findByTmdbId(tmdbId)
 
     suspend fun findByTitleAndYear(title: String, year: String): MovieEntity? =

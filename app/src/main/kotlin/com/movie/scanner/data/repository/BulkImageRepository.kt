@@ -43,6 +43,9 @@ class BulkImageRepository @Inject constructor(
         bulkUnprocessedImageDao.markProcessed(recordId)
     }
 
+    suspend fun getRecordById(recordId: Long): BulkUnprocessedImageEntity? =
+        bulkUnprocessedImageDao.getById(recordId)
+
     /**
      * Removes a bulk queue row and deletes its barcode/cover image files from disk.
      */

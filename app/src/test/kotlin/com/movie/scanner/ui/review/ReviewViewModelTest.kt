@@ -1,5 +1,6 @@
 package com.movie.scanner.ui.review
 
+import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
@@ -585,6 +586,85 @@ class ReviewViewModelTest {
         io.mockk.verify { scanSessionHolder.finishScan() }
         assertTrue(viewModel.uiState.value.finished)
         assertEquals(false, viewModel.uiState.value.finishedFromBulkProcessing)
+    }
+
+    @Test
+    fun refreshActionState_enablesBackDuringBulkProcessingWhenLastAddedMovieExists() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        bulkQueueSessionState.rememberLastAddedEntry(movieId = 7L, bulkRecordId = 1L)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.actionState.value.isBackEnabled)
+    }
+
+    @Test
+    fun refreshActionState_disablesBackWhenNoLastAddedMovie() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.actionState.value.isBackEnabled)
+    }
+
+    @Test
+    fun goBackToLastAddedMovie_defersCurrentRecordAndLoadsLastAddedMovie() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.currentBulkRecordId } returns 2L
+        bulkQueueSessionState.rememberLastAddedEntry(movieId = 7L, bulkRecordId = 1L)
+        val existingMovie = MovieEntity(
+            id = 7L,
+            title = "Saved Title",
+            year = "2018",
+            tmdbId = 5,
+            tmdbUrl = "https://www.themoviedb.org/movie/5",
+            posterUrl = null,
+            upc = "3333333333333",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = "DVD",
+            location = "Shelf B",
+        )
+        coEvery { movieRepository.findById(7L) } returns existingMovie
+        coEvery { movieRepository.existsByTmdbId(5) } returns true
+        coEvery { movieRepository.findByTmdbId(5) } returns existingMovie
+        coEvery { bulkImageRepository.getRecordById(1L) } returns BulkUnprocessedImageEntity(
+            id = 1L,
+            createdAtTimestamp = 0L,
+            barcodeRelFilepath = "barcode_1.jpg",
+            coverRelFilepath = "cover_1.jpg",
+            wasProcessed = true,
+        )
+        every { bulkImageRepository.resolveAbsolutePath("cover_1.jpg") } returns "/tmp/cover_1.jpg"
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.goBackToLastAddedMovie()
+        advanceUntilIdle()
+
+        assertTrue(bulkQueueSessionState.deferredRecordIds.contains(2L))
+        assertEquals(null, bulkQueueSessionState.lastAddedMovieId)
+        assertEquals(1L, bulkQueueSessionState.processingRecordId)
+        io.mockk.verify { bulkReviewPreloadService.clearPreload() }
+        io.mockk.verify {
+            scanSessionHolder.startBulkItem(
+                recordId = 1L,
+                coverRelFilepath = "cover_1.jpg",
+            )
+        }
+        io.mockk.verify { bulkReviewPreloadService.schedulePreloadAfter(1L) }
+        assertEquals("Saved Title", viewModel.uiState.value.title)
+        assertEquals("2018", viewModel.uiState.value.year)
+        assertEquals("3333333333333", viewModel.uiState.value.barcode)
+        assertEquals("DVD", viewModel.uiState.value.discType)
+        assertEquals("Shelf B", viewModel.uiState.value.location)
+        assertEquals("/tmp/cover_1.jpg", viewModel.uiState.value.bulkCoverAbsolutePath)
+        assertEquals(false, viewModel.actionState.value.isBackEnabled)
+        assertEquals(1, viewModel.bulkReviewSessionKey.value)
     }
 
 }

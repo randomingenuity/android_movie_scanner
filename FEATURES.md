@@ -17,7 +17,7 @@
 - Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Status (checkmark when reviewed, orange download while recognizing, green timer when recognition is ready, yellow timer while waiting), delete (trash icon per row). Rows are sorted by ID ascending; **Clear Done** (top right) removes all processed rows and their images.
 - After each barcode/cover pair is saved, recognition (LLM + TMDB) runs automatically in the background; results are stored on the queue row as JSON.
 - **Process** walks unprocessed pairs through review → add using the stored recognition data (no loading screen); **Scan** (to its right) returns to bulk capture to add more pairs (new pairs are recognized automatically as they are saved).
-- During processing, a spinner shows the current record ID; Review puts **Stop Processing** in the top bar, plus **Show Cover** and **Rescan** (opens the camera to replace the current pair, re-identify, and return to review on the same queue item).
+- During processing, a spinner shows the current record ID; Review puts **Stop Processing** in the top bar, plus **Show Cover** and **Rescan** (opens the camera to replace the current pair, re-identify, and return to review on the same queue item). **Back** (left of **Add**) discards the current item’s unsaved changes and reloads the last movie added to the list for editing.
 
 ## List
 

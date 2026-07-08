@@ -33,6 +33,9 @@ interface MovieDao {
     )
     suspend fun existsByTitleAndYear(title: String, year: String): Boolean
 
+    @Query("SELECT * FROM movies WHERE id = :movieId LIMIT 1")
+    suspend fun findById(movieId: Long): MovieEntity?
+
     @Query("SELECT * FROM movies WHERE tmdbId = :tmdbId LIMIT 1")
     suspend fun findByTmdbId(tmdbId: Int): MovieEntity?
 

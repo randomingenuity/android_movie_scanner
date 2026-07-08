@@ -63,6 +63,7 @@ data class ReviewUiState(
  * recompose the whole form when only button labels or enablement change.
  */
 data class ReviewActionState(
+    val isBackEnabled: Boolean = false,
     val isAddEnabled: Boolean = false,
     val showReplaceAdd: Boolean = false,
     val showForceAdd: Boolean = false,
@@ -326,7 +327,10 @@ class ReviewViewModel @Inject constructor(
                 details = details,
             )
             if (result.isSuccess) {
-                finishAfterAdd(state.title)
+                finishAfterAdd(
+                    title = state.title,
+                    addedMovieId = result.getOrThrow(),
+                )
             } else {
                 _actionState.update {
                     it.copy(actionMessage = result.exceptionOrNull()?.message ?: "Could not add movie.")
@@ -349,7 +353,10 @@ class ReviewViewModel @Inject constructor(
                 details = details,
             )
             if (result.isSuccess) {
-                finishAfterAdd(state.title)
+                finishAfterAdd(
+                    title = state.title,
+                    addedMovieId = result.getOrThrow(),
+                )
             } else {
                 _actionState.update {
                     it.copy(actionMessage = result.exceptionOrNull()?.message ?: "Could not force add movie.")
@@ -394,6 +401,41 @@ class ReviewViewModel @Inject constructor(
 
     fun dismissBulkCoverPreview() {
         _uiState.update { it.copy(showBulkCoverPreview = false) }
+    }
+
+    /**
+     * Discards the current bulk item and reloads the last movie added to the list for editing.
+     */
+    fun goBackToLastAddedMovie() {
+        viewModelScope.launch {
+            val movieId = bulkQueueSessionState.lastAddedMovieId ?: return@launch
+            val movie = movieRepository.findById(movieId) ?: return@launch
+            val currentRecordId = scanSessionHolder.currentBulkRecordId
+            if (currentRecordId != null) {
+                bulkQueueSessionState.deferRecord(currentRecordId)
+            }
+            bulkReviewPreloadService.clearPreload()
+            val bulkRecordId = bulkQueueSessionState.lastProcessedBulkRecordId
+            val bulkCoverRelFilepath = bulkRecordId?.let { recordId ->
+                bulkImageRepository.getRecordById(recordId)?.coverRelFilepath
+            }
+            bulkQueueSessionState.clearLastAddedEntry()
+            bulkQueueSessionState.processingRecordId = bulkRecordId
+            if (bulkRecordId != null && bulkCoverRelFilepath != null) {
+                scanSessionHolder.startNewScan()
+                scanSessionHolder.startBulkItem(
+                    recordId = bulkRecordId,
+                    coverRelFilepath = bulkCoverRelFilepath,
+                )
+            }
+            applyMovieEntityToUi(
+                movie = movie,
+                bulkCoverRelFilepath = bulkCoverRelFilepath,
+            )
+            bulkRecordId?.let { recordId ->
+                bulkReviewPreloadService.schedulePreloadAfter(recordId)
+            }
+        }
     }
 
     fun requestDiscard() {
@@ -442,8 +484,14 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
-    private fun finishAfterAdd(title: String) {
+    private fun finishAfterAdd(title: String, addedMovieId: Long) {
         viewModelScope.launch {
+            if (scanSessionHolder.isBulkProcessing) {
+                bulkQueueSessionState.rememberLastAddedEntry(
+                    movieId = addedMovieId,
+                    bulkRecordId = scanSessionHolder.currentBulkRecordId,
+                )
+            }
             if (tryAdvanceToNextBulkItem(markCurrentProcessed = true)) {
                 return@launch
             }
@@ -533,6 +581,74 @@ class ReviewViewModel @Inject constructor(
         applyPreloadedReviewToUi(preloadedReview)
         bulkReviewPreloadService.schedulePreloadAfter(preloadedReview.recordId)
         return true
+    }
+
+    private fun applyMovieEntityToUi(
+        movie: MovieEntity,
+        bulkCoverRelFilepath: String?,
+    ) {
+        loadedExistingEntryKey = "movie-${movie.id}"
+        cancelPendingFieldUpdates()
+        clearActionMessages()
+        _uiState.value = buildReviewUiStateFromMovie(
+            movie = movie,
+            bulkCoverRelFilepath = bulkCoverRelFilepath,
+            isBulkProcessing = scanSessionHolder.isBulkProcessing,
+        )
+        _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
+        viewModelScope.launch { refreshActionStateNow() }
+    }
+
+    private fun buildReviewUiStateFromMovie(
+        movie: MovieEntity,
+        bulkCoverRelFilepath: String?,
+        isBulkProcessing: Boolean,
+    ): ReviewUiState {
+        val featureType = FeatureType.fromLabel(movie.featureType)
+        val tmdbResults = if (movie.tmdbId != null && movie.tmdbUrl != null) {
+            listOf(
+                TmdbSearchResult(
+                    id = movie.tmdbId,
+                    title = movie.title,
+                    year = movie.year,
+                    posterUrl = movie.posterUrl,
+                    tmdbUrl = movie.tmdbUrl,
+                ),
+            )
+        } else {
+            emptyList()
+        }
+        val selectedTmdbResult = tmdbResults.firstOrNull()
+        scanSessionHolder.rememberReviewFeatureType(featureType)
+        if (!movie.location.isNullOrBlank()) {
+            scanSessionHolder.rememberReviewLocation(movie.location)
+        }
+        scanSessionHolder.rememberReviewDiscType(movie.discType)
+        return ReviewUiState(
+            featureType = featureType,
+            title = movie.title,
+            year = movie.year,
+            barcode = removeNewlinesFromBarcode(movie.upc.orEmpty()),
+            barcodeLlmMessage = if (movie.upc.isNullOrBlank()) {
+                "No barcode was captured; the LLM did not look up a barcode."
+            } else {
+                "Editing list entry barcode."
+            },
+            tmdbResults = tmdbResults,
+            selectedTmdbResult = selectedTmdbResult,
+            tmdbSyncedTitle = movie.title,
+            tmdbSyncedYear = movie.year,
+            discType = movie.discType,
+            location = movie.location.orEmpty(),
+            seasonNumberInput = movie.seasonNumber?.toString().orEmpty(),
+            numberOfDiscsInput = clampNumberOfDiscs(
+                movie.numberOfDiscs ?: DEFAULT_NUMBER_OF_DISCS,
+            ),
+            isBulkProcessing = isBulkProcessing,
+            bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
+                bulkImageRepository.resolveAbsolutePath(relativePath)
+            },
+        )
     }
 
     private fun applyPreloadedReviewToUi(preloadedReview: PreloadedBulkReview) {
@@ -778,6 +894,8 @@ class ReviewViewModel @Inject constructor(
         }
         _actionState.update {
             it.copy(
+                isBackEnabled = scanSessionHolder.isBulkProcessing &&
+                    bulkQueueSessionState.lastAddedMovieId != null,
                 isAddEnabled = yearFilled && seasonFilled && selected != null,
                 showReplaceAdd = showReplaceAdd,
                 showForceAdd = showForceAdd,

@@ -533,6 +533,12 @@ private fun ReviewActionButtons(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            OutlinedButton(
+                onClick = viewModel::goBackToLastAddedMovie,
+                enabled = actionState.isBackEnabled,
+            ) {
+                Text("Back")
+            }
             Button(
                 onClick = { viewModel.addMovie(formFields) },
                 enabled = actionState.isAddEnabled,
