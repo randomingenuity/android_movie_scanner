@@ -63,8 +63,7 @@ fun ScanBulkQueueScreen(
     viewModel: ScanBulkQueueViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val pendingRecords = uiState.records.filter { row -> !row.wasProcessed }
-    val doneRecords = uiState.records.filter { row -> row.wasProcessed }
+    val hasDoneRecords = uiState.records.any { row -> row.wasProcessed }
 
     BackHandler {
         viewModel.prepareForBulkCapture()
@@ -98,7 +97,7 @@ fun ScanBulkQueueScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (doneRecords.isNotEmpty() && !uiState.isProcessing) {
+            if (hasDoneRecords && !uiState.isProcessing) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -120,16 +119,7 @@ fun ScanBulkQueueScreen(
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                items(pendingRecords, key = { row -> row.id }) { row ->
-                    BulkQueueDataRow(
-                        row = row,
-                        onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
-                        onCoverClick = { viewModel.showImagePreview(row.coverRelFilepath) },
-                        onDeleteClick = { viewModel.deleteRecord(row.id) },
-                    )
-                    HorizontalDivider()
-                }
-                items(doneRecords, key = { row -> row.id }) { row ->
+                items(uiState.records, key = { row -> row.id }) { row ->
                     BulkQueueDataRow(
                         row = row,
                         onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
