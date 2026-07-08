@@ -136,14 +136,14 @@ fun ScanBulkQueueScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 if (uiState.isProcessing) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator()
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(56.dp),
+                            strokeWidth = 4.dp,
+                        )
                         Text(
                             text = uiState.processingRecordNumber?.toString().orEmpty(),
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                         )
                     }
                 } else {
