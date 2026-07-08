@@ -4,6 +4,7 @@
 
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
 - Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
+- Review shows **Open Matched** above Title when TMDB returned a single match; tap opens that title on TMDB in the default browser.
 
 ## Scan Bulk
 

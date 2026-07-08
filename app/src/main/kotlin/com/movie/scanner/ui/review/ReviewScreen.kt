@@ -67,6 +67,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -312,6 +313,13 @@ fun ReviewScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+            }
+            uiState.tmdbResults.singleOrNull()?.let { matchedResult ->
+                item(key = "open_matched_link") {
+                    ReviewOpenMatchedLink(
+                        tmdbUrl = matchedResult.tmdbUrl,
+                    )
                 }
             }
             item(key = "title_field") {
@@ -586,6 +594,24 @@ private fun ReviewNumberOfDiscsField(
             }
         }
     }
+}
+
+/**
+ * Opens the auto-applied TMDB match in the default browser when recognition returned one result.
+ */
+@Composable
+private fun ReviewOpenMatchedLink(
+    tmdbUrl: String,
+) {
+    val uriHandler = LocalUriHandler.current
+    Text(
+        text = "Open Matched",
+        modifier = Modifier.clickable { uriHandler.openUri(tmdbUrl) },
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.bodyMedium.copy(
+            textDecoration = TextDecoration.Underline,
+        ),
+    )
 }
 
 /**
