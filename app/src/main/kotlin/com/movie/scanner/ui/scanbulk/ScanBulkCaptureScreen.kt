@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -231,7 +232,7 @@ fun ScanBulkCaptureScreen(
                         }
                     }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (!uiState.isRescanMode) {
@@ -240,7 +241,9 @@ fun ScanBulkCaptureScreen(
                                     text = uiState.bulkLocation,
                                     modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
                                     color = MaterialTheme.colorScheme.primary,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        textDecoration = TextDecoration.Underline,
+                                    ),
                                 )
                             } else {
                                 TextButton(onClick = viewModel::openLocationDialog) {
