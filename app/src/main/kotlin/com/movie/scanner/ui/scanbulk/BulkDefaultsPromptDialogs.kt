@@ -49,7 +49,7 @@ fun BulkDefaultsPromptDialogs(
             text = {
                 Text("Your defaults are not set for this session. Set now?")
             },
-            confirmButton = {
+            dismissButton = {
                 Button(
                     onClick = onAcceptBulkDefaultsSetup,
                     colors = ButtonDefaults.buttonColors(
@@ -59,7 +59,7 @@ fun BulkDefaultsPromptDialogs(
                     Text("Yes")
                 }
             },
-            dismissButton = {
+            confirmButton = {
                 Button(
                     onClick = onDismissBulkDefaultsPrompt,
                     colors = ButtonDefaults.buttonColors(
