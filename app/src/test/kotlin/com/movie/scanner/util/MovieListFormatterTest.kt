@@ -38,8 +38,6 @@ class MovieListFormatterTest {
                 "Season" to "",
                 "Number of discs" to "2",
                 "TMDB ID" to "603",
-                "TMDB URL" to "https://www.themoviedb.org/movie/603",
-                "Poster URL" to "https://image.tmdb.org/poster.jpg",
                 "Force added" to "No",
             ),
             detailFields,

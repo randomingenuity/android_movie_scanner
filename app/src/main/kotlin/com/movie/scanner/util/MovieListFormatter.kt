@@ -5,7 +5,7 @@ import com.movie.scanner.data.model.MovieEntity
 
 object MovieListFormatter {
     /**
-     * Label/value pairs for the list detail overlay, aligned with CSV export columns plus force-added status.
+     * Label/value pairs for the list detail overlay (catalog fields and force-added status; URLs omitted).
      */
     fun buildDetailFields(movie: MovieEntity): List<Pair<String, String>> {
         val featureType = FeatureType.fromLabel(movie.featureType)
@@ -23,8 +23,6 @@ object MovieListFormatter {
             },
             "Number of discs" to movie.numberOfDiscs?.toString().orEmpty(),
             "TMDB ID" to movie.tmdbId?.toString().orEmpty(),
-            "TMDB URL" to movie.tmdbUrl.orEmpty(),
-            "Poster URL" to movie.posterUrl.orEmpty(),
             "Force added" to if (movie.isForceAdded) "Yes" else "No",
         )
     }
