@@ -4,6 +4,8 @@ import com.movie.scanner.data.model.BulkProcessingResults
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
+import com.movie.scanner.data.session.BulkQueueSessionState
+import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BulkProcessingResultsJson
 import io.mockk.coEvery
@@ -31,6 +33,8 @@ class ScanBulkQueueViewModelTest {
     private val bulkImageRepository = mockk<BulkImageRepository>(relaxed = true)
     private val bulkRecognitionProcessor = mockk<BulkRecognitionProcessor>(relaxed = true)
     private val scanSessionHolder = mockk<ScanSessionHolder>(relaxed = true)
+    private val bulkQueueSessionState = BulkQueueSessionState()
+    private val bulkReviewPreloadService = mockk<BulkReviewPreloadService>(relaxed = true)
     private val readyResultsJson = BulkProcessingResultsJson.encode(BulkProcessingResults())
 
     @Before
@@ -64,11 +68,16 @@ class ScanBulkQueueViewModelTest {
             processingResultsJson = readyResultsJson,
         )
         coEvery { bulkImageRepository.listUnprocessedRecords() } returns listOf(firstRecord, secondRecord)
+        coEvery { bulkReviewPreloadService.findNextReviewableRecord(afterRecordId = null) } returns firstRecord
+        coEvery { bulkReviewPreloadService.findNextReviewableRecord(afterRecordId = 1L) } returns secondRecord
+        every { bulkReviewPreloadService.takePreloadedReview() } returns null
 
         val viewModel = ScanBulkQueueViewModel(
             bulkImageRepository = bulkImageRepository,
             bulkRecognitionProcessor = bulkRecognitionProcessor,
             scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
         )
         val navigationEvents = mutableListOf<ScanBulkQueueEvent>()
         val collectorJob = launch {
@@ -89,6 +98,7 @@ class ScanBulkQueueViewModelTest {
                 coverRelFilepath = "cover_1.jpg",
             )
         }
+        io.mockk.verify { bulkReviewPreloadService.schedulePreloadAfter(1L) }
 
         every { scanSessionHolder.consumeBulkQueueResume() } returns true
         viewModel.resumeProcessingIfNeeded()

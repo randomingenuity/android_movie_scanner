@@ -10,6 +10,9 @@ import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
+import com.movie.scanner.data.session.BulkQueueSessionState
+import com.movie.scanner.data.session.BulkReviewPreloadService
+import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.IntegerInput
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -87,11 +90,15 @@ class ReviewViewModel @Inject constructor(
     private val tmdbRepository: TmdbRepository,
     private val movieRepository: MovieRepository,
     private val bulkImageRepository: BulkImageRepository,
+    private val bulkQueueSessionState: BulkQueueSessionState,
+    private val bulkReviewPreloadService: BulkReviewPreloadService,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
     private val _actionState = MutableStateFlow(ReviewActionState())
     val actionState: StateFlow<ReviewActionState> = _actionState.asStateFlow()
+    private val _bulkReviewSessionKey = MutableStateFlow(0)
+    val bulkReviewSessionKey: StateFlow<Int> = _bulkReviewSessionKey.asStateFlow()
     private val navigationEvents = Channel<ReviewNavigationEvent>(Channel.BUFFERED)
     val navigationEventFlow = navigationEvents.receiveAsFlow()
     private var loadedExistingEntryKey: String? = null
@@ -103,48 +110,12 @@ class ReviewViewModel @Inject constructor(
     private var locationUpdateJob: Job? = null
 
     init {
-        val coverGuess = scanSessionHolder.coverGuess
-        val barcodeGuess = scanSessionHolder.barcodeGuess
-        val title = coverGuess?.title?.takeIf { title -> title.isNotBlank() }
-            ?: barcodeGuess?.title.orEmpty()
-        val year = coverGuess?.year?.takeIf { year -> year.isNotBlank() }
-            ?: barcodeGuess?.year.orEmpty()
-        val barcodeSuggestion = barcodeGuess?.takeIf {
-            it.title.isNotBlank() &&
-                (it.title != title || it.year != year)
+        _uiState.value = buildReviewUiStateFromSession()
+        if (scanSessionHolder.isBulkProcessing) {
+            scanSessionHolder.currentBulkRecordId?.let { recordId ->
+                bulkReviewPreloadService.schedulePreloadAfter(recordId)
+            }
         }
-        val initialResults = scanSessionHolder.initialTmdbResults
-        val capturedBarcode = scanSessionHolder.resolveCapturedUpc()
-        val bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath
-        val barcodeUsedForTitle = wasBarcodeUsedForTitle(
-            coverGuess = coverGuess,
-            barcodeGuess = barcodeGuess,
-        )
-        _uiState.value = ReviewUiState(
-            featureType = scanSessionHolder.lastReviewFeatureType,
-            location = resolveDefaultReviewLocation(),
-            title = title,
-            year = year,
-            barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
-            extractedCoverTitle = coverGuess?.title?.trim().orEmpty(),
-            barcodeUsedForTitle = barcodeUsedForTitle,
-            barcodeUsageMessage = buildBarcodeUsageMessage(
-                upc = capturedBarcode,
-                coverGuess = coverGuess,
-                barcodeGuess = barcodeGuess,
-            ),
-            barcodeLlmMessage = buildBarcodeLlmMessage(
-                upc = capturedBarcode,
-                barcodeGuess = barcodeGuess,
-            ),
-            barcodeSuggestion = barcodeSuggestion,
-            tmdbResults = initialResults,
-            selectedTmdbResult = initialResults.firstOrNull(),
-            isBulkProcessing = scanSessionHolder.isBulkProcessing,
-            bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
-                bulkImageRepository.resolveAbsolutePath(relativePath)
-            },
-        )
         viewModelScope.launch { refreshActionStateNow() }
     }
 
@@ -428,6 +399,9 @@ class ReviewViewModel @Inject constructor(
 
     fun confirmDiscard() {
         viewModelScope.launch {
+            if (tryAdvanceToNextBulkItem(markCurrentProcessed = false)) {
+                return@launch
+            }
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
             advanceBulkQueueWithoutProcessing()
             scanSessionHolder.finishScan()
@@ -444,6 +418,9 @@ class ReviewViewModel @Inject constructor(
 
     fun skipMovie() {
         viewModelScope.launch {
+            if (tryAdvanceToNextBulkItem(markCurrentProcessed = false)) {
+                return@launch
+            }
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
             advanceBulkQueueWithoutProcessing()
             scanSessionHolder.finishScan()
@@ -460,6 +437,9 @@ class ReviewViewModel @Inject constructor(
 
     private fun finishAfterAdd(title: String) {
         viewModelScope.launch {
+            if (tryAdvanceToNextBulkItem(markCurrentProcessed = true)) {
+                return@launch
+            }
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
             completeBulkItemIfNeeded()
             if (finishedFromBulkProcessing) {
@@ -507,6 +487,118 @@ class ReviewViewModel @Inject constructor(
         if (shouldResumeQueue) {
             scanSessionHolder.signalBulkQueueResume()
         }
+    }
+
+    /**
+     * Applies a preloaded bulk item on the review screen without leaving bulk processing.
+     */
+    private suspend fun tryAdvanceToNextBulkItem(
+        markCurrentProcessed: Boolean,
+    ): Boolean {
+        if (!scanSessionHolder.isBulkProcessing || scanSessionHolder.bulkProcessingStopRequested) {
+            return false
+        }
+        val currentRecordId = scanSessionHolder.currentBulkRecordId ?: return false
+        if (markCurrentProcessed) {
+            bulkImageRepository.markProcessed(currentRecordId)
+        } else {
+            bulkQueueSessionState.deferRecord(currentRecordId)
+        }
+        val preloadedReview = bulkReviewPreloadService.takePreloadedReview() ?: return false
+        bulkQueueSessionState.processingRecordId = preloadedReview.recordId
+        scanSessionHolder.startNewScan()
+        scanSessionHolder.startBulkItem(
+            recordId = preloadedReview.recordId,
+            coverRelFilepath = preloadedReview.coverRelFilepath,
+        )
+        scanSessionHolder.storeRecognitionResults(
+            coverGuessValue = preloadedReview.coverGuess,
+            barcodeGuessValue = preloadedReview.barcodeGuess,
+            tmdbResults = preloadedReview.tmdbResults,
+            capturedUpcValue = preloadedReview.capturedUpc,
+        )
+        if (markCurrentProcessed) {
+            val savedLocation = _uiState.value.location
+            if (savedLocation.isNotBlank()) {
+                scanSessionHolder.rememberReviewLocation(savedLocation)
+            }
+        }
+        applyPreloadedReviewToUi(preloadedReview)
+        bulkReviewPreloadService.schedulePreloadAfter(preloadedReview.recordId)
+        return true
+    }
+
+    private fun applyPreloadedReviewToUi(preloadedReview: PreloadedBulkReview) {
+        loadedExistingEntryKey = null
+        cancelPendingFieldUpdates()
+        clearActionMessages()
+        _uiState.value = buildReviewUiState(
+            coverGuess = preloadedReview.coverGuess,
+            barcodeGuess = preloadedReview.barcodeGuess,
+            initialResults = preloadedReview.tmdbResults,
+            capturedBarcode = preloadedReview.capturedUpc,
+            bulkCoverRelFilepath = preloadedReview.coverRelFilepath,
+            isBulkProcessing = true,
+        )
+        _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
+        viewModelScope.launch { refreshActionStateNow() }
+    }
+
+    private fun buildReviewUiStateFromSession(): ReviewUiState =
+        buildReviewUiState(
+            coverGuess = scanSessionHolder.coverGuess,
+            barcodeGuess = scanSessionHolder.barcodeGuess,
+            initialResults = scanSessionHolder.initialTmdbResults,
+            capturedBarcode = scanSessionHolder.resolveCapturedUpc(),
+            bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath,
+            isBulkProcessing = scanSessionHolder.isBulkProcessing,
+        )
+
+    private fun buildReviewUiState(
+        coverGuess: MovieGuess?,
+        barcodeGuess: MovieGuess?,
+        initialResults: List<TmdbSearchResult>,
+        capturedBarcode: String?,
+        bulkCoverRelFilepath: String?,
+        isBulkProcessing: Boolean,
+    ): ReviewUiState {
+        val title = coverGuess?.title?.takeIf { title -> title.isNotBlank() }
+            ?: barcodeGuess?.title.orEmpty()
+        val year = coverGuess?.year?.takeIf { year -> year.isNotBlank() }
+            ?: barcodeGuess?.year.orEmpty()
+        val barcodeSuggestion = barcodeGuess?.takeIf {
+            it.title.isNotBlank() &&
+                (it.title != title || it.year != year)
+        }
+        val barcodeUsedForTitle = wasBarcodeUsedForTitle(
+            coverGuess = coverGuess,
+            barcodeGuess = barcodeGuess,
+        )
+        return ReviewUiState(
+            featureType = scanSessionHolder.lastReviewFeatureType,
+            location = resolveDefaultReviewLocation(),
+            title = title,
+            year = year,
+            barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
+            extractedCoverTitle = coverGuess?.title?.trim().orEmpty(),
+            barcodeUsedForTitle = barcodeUsedForTitle,
+            barcodeUsageMessage = buildBarcodeUsageMessage(
+                upc = capturedBarcode,
+                coverGuess = coverGuess,
+                barcodeGuess = barcodeGuess,
+            ),
+            barcodeLlmMessage = buildBarcodeLlmMessage(
+                upc = capturedBarcode,
+                barcodeGuess = barcodeGuess,
+            ),
+            barcodeSuggestion = barcodeSuggestion,
+            tmdbResults = initialResults,
+            selectedTmdbResult = initialResults.firstOrNull(),
+            isBulkProcessing = isBulkProcessing,
+            bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
+                bulkImageRepository.resolveAbsolutePath(relativePath)
+            },
+        )
     }
 
     private fun buildReviewItemDetails(state: ReviewUiState): ReviewItemDetails? {

@@ -7,6 +7,9 @@ import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
+import com.movie.scanner.data.session.BulkQueueSessionState
+import com.movie.scanner.data.session.BulkReviewPreloadService
+import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -33,10 +36,23 @@ class ReviewViewModelTest {
     private val tmdbRepository = mockk<TmdbRepository>(relaxed = true)
     private val movieRepository = mockk<MovieRepository>(relaxed = true)
     private val bulkImageRepository = mockk<BulkImageRepository>(relaxed = true)
+    private val bulkQueueSessionState = BulkQueueSessionState()
+    private val bulkReviewPreloadService = mockk<BulkReviewPreloadService>(relaxed = true)
+
+    private fun createViewModel(): ReviewViewModel =
+        ReviewViewModel(
+            scanSessionHolder = scanSessionHolder,
+            tmdbRepository = tmdbRepository,
+            movieRepository = movieRepository,
+            bulkImageRepository = bulkImageRepository,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        bulkQueueSessionState.resetForNewProcessingRun()
         every { scanSessionHolder.coverGuess } returns MovieGuess(title = "Cover Title", year = "2020")
         every { scanSessionHolder.barcodeGuess } returns MovieGuess(title = "Barcode Title", year = "2019")
         every { scanSessionHolder.initialTmdbResults } returns listOf(
@@ -66,7 +82,7 @@ class ReviewViewModelTest {
 
     @Test
     fun init_prefillsTitleAndYearFromCoverGuess() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Cover Title", viewModel.uiState.value.title)
@@ -78,7 +94,7 @@ class ReviewViewModelTest {
     fun init_fallsBackToBarcodeGuessWhenCoverMissing() = runTest {
         every { scanSessionHolder.coverGuess } returns null
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Barcode Title", viewModel.uiState.value.title)
@@ -88,7 +104,7 @@ class ReviewViewModelTest {
 
     @Test
     fun init_doesNotMarkBarcodeUsedForTitleWhenCoverProvidesTitle() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Cover Title", viewModel.uiState.value.extractedCoverTitle)
@@ -97,7 +113,7 @@ class ReviewViewModelTest {
 
     @Test
     fun updateBarcode_stripsNewlines() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         val sanitized = viewModel.updateBarcode("9781234567890\r\n")
@@ -111,7 +127,7 @@ class ReviewViewModelTest {
     fun init_restoresLocationFromPreviousEntry() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
@@ -123,7 +139,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
         every { scanSessionHolder.lastReviewLocation } returns ""
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
@@ -150,7 +166,7 @@ class ReviewViewModelTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
         coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
@@ -161,7 +177,7 @@ class ReviewViewModelTest {
     fun updateLocation_remembersClearedValue() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.updateLocation("")
@@ -174,7 +190,7 @@ class ReviewViewModelTest {
     fun init_restoresFeatureTypeFromPreviousEntry() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
@@ -182,7 +198,7 @@ class ReviewViewModelTest {
 
     @Test
     fun updateFeatureType_remembersSelectionForNextEntry() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.updateFeatureType(FeatureType.TV)
@@ -212,7 +228,7 @@ class ReviewViewModelTest {
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
         coEvery { movieRepository.findByTitleAndSeason("Cover Title", 2) } returns existingMovie
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.updateSeasonNumberInput("2")
@@ -246,7 +262,7 @@ class ReviewViewModelTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
         coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("111111111111", viewModel.uiState.value.barcode)
@@ -258,7 +274,7 @@ class ReviewViewModelTest {
     fun refreshActionState_showsReplaceWhenMovieAlreadyExists() = runTest {
         coEvery { movieRepository.existsByTmdbId(1) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.showReplaceAdd)
@@ -273,7 +289,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         coEvery { movieRepository.existsByTmdbId(1) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(false, viewModel.actionState.value.showReplaceAdd)
@@ -286,7 +302,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.updateSeasonNumberInput("2")
@@ -305,7 +321,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.initialTmdbResults } returns emptyList()
         coEvery { movieRepository.existsByTitleAndYear("Cover Title", "2020") } returns true
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.showForceAdd)
@@ -317,12 +333,62 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun skipMovie_duringBulkProcessing_withPreloadedItem_advancesInPlace() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.currentBulkRecordId } returns 1L
+        every { scanSessionHolder.bulkProcessingStopRequested } returns false
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
+        every { scanSessionHolder.bulkBatchLocation } returns ""
+        every { scanSessionHolder.lastReviewLocation } returns ""
+        val preloadedReview = PreloadedBulkReview(
+            recordId = 2L,
+            coverRelFilepath = "cover_2.jpg",
+            coverAbsolutePath = "/tmp/cover_2.jpg",
+            coverGuess = MovieGuess(title = "Next Title", year = "2021"),
+            barcodeGuess = null,
+            tmdbResults = listOf(
+                TmdbSearchResult(
+                    id = 2,
+                    title = "Next Title",
+                    year = "2021",
+                    posterUrl = null,
+                    tmdbUrl = "https://www.themoviedb.org/movie/2",
+                ),
+            ),
+            capturedUpc = "2222222222222",
+        )
+        every { bulkReviewPreloadService.takePreloadedReview() } returns preloadedReview
+        every { bulkImageRepository.resolveAbsolutePath("cover_2.jpg") } returns "/tmp/cover_2.jpg"
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.skipMovie()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { bulkImageRepository.markProcessed(any()) }
+        assertTrue(bulkQueueSessionState.deferredRecordIds.contains(1L))
+        io.mockk.verify {
+            scanSessionHolder.startBulkItem(
+                recordId = 2L,
+                coverRelFilepath = "cover_2.jpg",
+            )
+        }
+        io.mockk.verify { bulkReviewPreloadService.schedulePreloadAfter(2L) }
+        io.mockk.verify(exactly = 0) { scanSessionHolder.finishScan() }
+        assertEquals(false, viewModel.uiState.value.finished)
+        assertEquals("Next Title", viewModel.uiState.value.title)
+        assertEquals(1, viewModel.bulkReviewSessionKey.value)
+    }
+
+    @Test
     fun skipMovie_duringBulkProcessing_doesNotMarkProcessedAndResumesQueue() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.currentBulkRecordId } returns 42L
         every { scanSessionHolder.bulkProcessingStopRequested } returns false
+        every { bulkReviewPreloadService.takePreloadedReview() } returns null
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.skipMovie()
@@ -341,8 +407,9 @@ class ReviewViewModelTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.currentBulkRecordId } returns 42L
         every { scanSessionHolder.bulkProcessingStopRequested } returns false
+        every { bulkReviewPreloadService.takePreloadedReview() } returns null
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.confirmDiscard()
@@ -361,7 +428,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.currentBulkRecordId } returns 42L
 
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         val navigationEvents = mutableListOf<ReviewNavigationEvent>()
         val collectorJob = launch {
             viewModel.navigationEventFlow.collect { event ->
@@ -380,7 +447,7 @@ class ReviewViewModelTest {
 
     @Test
     fun skipMovie_outsideBulkProcessing_doesNotTouchBulkRepository() = runTest {
-        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.skipMovie()

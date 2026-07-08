@@ -70,6 +70,7 @@ fun ReviewScreen(
     viewModel: ReviewViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val bulkReviewSessionKey by viewModel.bulkReviewSessionKey.collectAsStateWithLifecycle()
     val barcodeFocusRequester = remember { FocusRequester() }
     var barcodeFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var barcodeFieldReady by remember { mutableStateOf(false) }
@@ -102,6 +103,23 @@ fun ReviewScreen(
         if (discsInput != uiState.numberOfDiscsInput) {
             discsInput = uiState.numberOfDiscsInput
         }
+    }
+    LaunchedEffect(bulkReviewSessionKey) {
+        if (bulkReviewSessionKey == 0) {
+            return@LaunchedEffect
+        }
+        titleInput = uiState.title
+        yearInput = uiState.year
+        locationInput = uiState.location
+        seasonInput = uiState.seasonNumberInput
+        discsInput = uiState.numberOfDiscsInput
+        val barcode = uiState.barcode
+        barcodeFieldValue = if (barcode.isEmpty()) {
+            TextFieldValue(text = "", selection = TextRange(0))
+        } else {
+            TextFieldValue(text = barcode)
+        }
+        barcodeFieldReady = true
     }
     LaunchedEffect(uiState.barcode) {
         val barcode = uiState.barcode

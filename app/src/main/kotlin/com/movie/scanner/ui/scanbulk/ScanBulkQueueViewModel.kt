@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
+import com.movie.scanner.data.session.BulkQueueSessionState
+import com.movie.scanner.data.session.BulkReviewPreloadService
+import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BulkProcessingResultsJson
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,14 +56,14 @@ class ScanBulkQueueViewModel @Inject constructor(
     private val bulkImageRepository: BulkImageRepository,
     private val bulkRecognitionProcessor: BulkRecognitionProcessor,
     private val scanSessionHolder: ScanSessionHolder,
+    private val bulkQueueSessionState: BulkQueueSessionState,
+    private val bulkReviewPreloadService: BulkReviewPreloadService,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScanBulkQueueUiState())
     val uiState: StateFlow<ScanBulkQueueUiState> = _uiState.asStateFlow()
     private val navigationEvents = Channel<ScanBulkQueueEvent>(Channel.BUFFERED)
     val navigationEventFlow = navigationEvents.receiveAsFlow()
     private val timestampFormatter = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-    private var shouldContinueProcessing = false
-    private val deferredRecordIds = mutableSetOf<Long>()
 
     init {
         viewModelScope.launch {
@@ -86,8 +89,9 @@ class ScanBulkQueueViewModel @Inject constructor(
         if (_uiState.value.isProcessing) {
             return
         }
-        deferredRecordIds.clear()
-        shouldContinueProcessing = true
+        bulkReviewPreloadService.clearPreload()
+        bulkQueueSessionState.resetForNewProcessingRun()
+        bulkQueueSessionState.shouldContinueProcessing = true
         viewModelScope.launch {
             processNextRecord()
         }
@@ -97,14 +101,7 @@ class ScanBulkQueueViewModel @Inject constructor(
      * Stops queue processing and navigates back to the main Scan tab.
      */
     fun exitToScan() {
-        shouldContinueProcessing = false
-        deferredRecordIds.clear()
-        _uiState.update {
-            it.copy(
-                isProcessing = false,
-                processingRecordId = null,
-            )
-        }
+        stopActiveProcessing()
         viewModelScope.launch {
             navigationEvents.send(ScanBulkQueueEvent.NavigateToScan)
         }
@@ -114,35 +111,22 @@ class ScanBulkQueueViewModel @Inject constructor(
      * Clears active queue processing before opening bulk capture to add more pairs.
      */
     fun prepareForBulkCapture() {
-        shouldContinueProcessing = false
-        deferredRecordIds.clear()
-        _uiState.update {
-            it.copy(
-                isProcessing = false,
-                processingRecordId = null,
-            )
-        }
+        stopActiveProcessing()
     }
 
     fun resumeProcessingIfNeeded() {
         if (scanSessionHolder.consumeBulkProcessingStopRequested()) {
-            shouldContinueProcessing = false
-            _uiState.update {
-                it.copy(
-                    isProcessing = false,
-                    processingRecordId = null,
-                )
-            }
+            stopActiveProcessing()
             return
         }
         if (!scanSessionHolder.consumeBulkQueueResume()) {
             return
         }
-        if (!shouldContinueProcessing || !_uiState.value.isProcessing) {
+        if (!bulkQueueSessionState.shouldContinueProcessing || !_uiState.value.isProcessing) {
             return
         }
-        _uiState.value.processingRecordId?.let { recordId ->
-            deferredRecordIds.add(recordId)
+        bulkQueueSessionState.processingRecordId?.let { recordId ->
+            bulkQueueSessionState.deferRecord(recordId)
         }
         viewModelScope.launch {
             processNextRecord()
@@ -166,13 +150,7 @@ class ScanBulkQueueViewModel @Inject constructor(
     fun deleteRecord(recordId: Long) {
         viewModelScope.launch {
             if (_uiState.value.processingRecordId == recordId) {
-                shouldContinueProcessing = false
-                _uiState.update {
-                    it.copy(
-                        isProcessing = false,
-                        processingRecordId = null,
-                    )
-                }
+                stopActiveProcessing()
             }
             bulkImageRepository.deleteRecord(recordId)
         }
@@ -190,8 +168,19 @@ class ScanBulkQueueViewModel @Inject constructor(
         }
     }
 
+    private fun stopActiveProcessing() {
+        bulkQueueSessionState.shouldContinueProcessing = false
+        bulkReviewPreloadService.clearPreload()
+        _uiState.update {
+            it.copy(
+                isProcessing = false,
+                processingRecordId = null,
+            )
+        }
+    }
+
     private suspend fun processNextRecord() {
-        if (!shouldContinueProcessing) {
+        if (!bulkQueueSessionState.shouldContinueProcessing) {
             _uiState.update {
                 it.copy(
                     isProcessing = false,
@@ -200,9 +189,10 @@ class ScanBulkQueueViewModel @Inject constructor(
             }
             return
         }
-        val nextRecord = findNextReviewableRecord()
+        val preloadedReview = bulkReviewPreloadService.takePreloadedReview()
+        val nextRecord = resolveNextRecord(preloadedReview)
         if (nextRecord == null) {
-            shouldContinueProcessing = false
+            bulkQueueSessionState.shouldContinueProcessing = false
             _uiState.update {
                 it.copy(
                     isProcessing = false,
@@ -211,6 +201,7 @@ class ScanBulkQueueViewModel @Inject constructor(
             }
             return
         }
+        bulkQueueSessionState.processingRecordId = nextRecord.id
         _uiState.update {
             it.copy(
                 isProcessing = true,
@@ -222,53 +213,54 @@ class ScanBulkQueueViewModel @Inject constructor(
             processNextRecord()
             return
         }
-        val results = BulkProcessingResultsJson.parse(processingResultsJson)
+        applyRecordToSession(
+            record = nextRecord,
+            preloadedReview = preloadedReview?.takeIf { cached -> cached.recordId == nextRecord.id },
+        )
+        bulkReviewPreloadService.schedulePreloadAfter(nextRecord.id)
+        navigationEvents.send(ScanBulkQueueEvent.NavigateToReview)
+    }
+
+    private suspend fun resolveNextRecord(
+        preloadedReview: PreloadedBulkReview?,
+    ): BulkUnprocessedImageEntity? {
+        if (preloadedReview != null) {
+            val cachedRecord = bulkImageRepository.listUnprocessedRecords()
+                .firstOrNull { record -> record.id == preloadedReview.recordId }
+            if (cachedRecord != null && !cachedRecord.processingResultsJson.isNullOrBlank()) {
+                return cachedRecord
+            }
+        }
+        return bulkReviewPreloadService.findNextReviewableRecord(
+            afterRecordId = bulkQueueSessionState.processingRecordId,
+        )
+    }
+
+    private fun applyRecordToSession(
+        record: BulkUnprocessedImageEntity,
+        preloadedReview: PreloadedBulkReview?,
+    ) {
         scanSessionHolder.startNewScan()
         scanSessionHolder.startBulkItem(
-            recordId = nextRecord.id,
-            coverRelFilepath = nextRecord.coverRelFilepath,
+            recordId = record.id,
+            coverRelFilepath = record.coverRelFilepath,
         )
+        if (preloadedReview != null) {
+            scanSessionHolder.storeRecognitionResults(
+                coverGuessValue = preloadedReview.coverGuess,
+                barcodeGuessValue = preloadedReview.barcodeGuess,
+                tmdbResults = preloadedReview.tmdbResults,
+                capturedUpcValue = preloadedReview.capturedUpc,
+            )
+            return
+        }
+        val results = BulkProcessingResultsJson.parse(record.processingResultsJson.orEmpty())
         scanSessionHolder.storeRecognitionResults(
             coverGuessValue = results.coverGuess,
             barcodeGuessValue = results.barcodeGuess,
             tmdbResults = results.tmdbResults,
             capturedUpcValue = results.capturedUpc,
         )
-        navigationEvents.send(ScanBulkQueueEvent.NavigateToReview)
-    }
-
-    private suspend fun findNextReviewableRecord(): BulkUnprocessedImageEntity? {
-        val unprocessedRecords = bulkImageRepository.listUnprocessedRecords()
-        for (record in unprocessedRecords) {
-            if (deferredRecordIds.contains(record.id)) {
-                continue
-            }
-            if (!record.processingResultsJson.isNullOrBlank()) {
-                return record
-            }
-            if (bulkRecognitionProcessor.recognizingRecordIds.value.contains(record.id)) {
-                return waitForRecognition(record.id)
-            }
-            bulkRecognitionProcessor.scheduleRecognition()
-            return waitForRecognition(record.id)
-        }
-        return null
-    }
-
-    private suspend fun waitForRecognition(recordId: Long): BulkUnprocessedImageEntity? {
-        while (shouldContinueProcessing) {
-            val record = bulkImageRepository.listUnprocessedRecords()
-                .firstOrNull { candidate -> candidate.id == recordId }
-                ?: return null
-            if (!record.processingResultsJson.isNullOrBlank()) {
-                return record
-            }
-            if (!bulkRecognitionProcessor.recognizingRecordIds.value.contains(recordId)) {
-                bulkRecognitionProcessor.scheduleRecognition()
-            }
-            kotlinx.coroutines.delay(250)
-        }
-        return null
     }
 
     private fun buildQueueRow(
