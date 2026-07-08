@@ -27,6 +27,7 @@ sealed interface CaptureProcessingEvent {
 data class ScanUiState(
     val captureMode: ScanCaptureMode = ScanCaptureMode.BARCODE,
     val isConfigured: Boolean = false,
+    val isCapturing: Boolean = false,
     val isProcessingCapture: Boolean = false,
     val showManualEntryDialog: Boolean = false,
     val manualEntryError: String? = null,
@@ -78,21 +79,27 @@ class ScanViewModel @Inject constructor(
                 captureMode = ScanCaptureMode.COVER,
                 statusMessage = "Capture the cover photo",
                 captureErrorMessage = null,
+                isCapturing = false,
                 isProcessingCapture = false,
             )
         }
     }
 
     /**
-     * Clears a stale processing overlay when the capture screen becomes visible again.
+     * Clears a stale capture overlay when the capture screen becomes visible again.
      */
     fun onCaptureScreenResumed() {
         if (scanSessionHolder.consumeCoverRetakeRequest()) {
             resumeCoverCapture()
             return
         }
-        if (_uiState.value.isProcessingCapture) {
-            _uiState.update { it.copy(isProcessingCapture = false) }
+        if (_uiState.value.isCapturing || _uiState.value.isProcessingCapture) {
+            _uiState.update {
+                it.copy(
+                    isCapturing = false,
+                    isProcessingCapture = false,
+                )
+            }
         }
     }
 
@@ -101,7 +108,8 @@ class ScanViewModel @Inject constructor(
     fun beginCaptureProcessing() {
         _uiState.update {
             it.copy(
-                isProcessingCapture = true,
+                isCapturing = true,
+                isProcessingCapture = false,
                 captureErrorMessage = null,
             )
         }
@@ -111,6 +119,7 @@ class ScanViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 captureErrorMessage = null,
+                isCapturing = false,
                 isProcessingCapture = false,
             )
         }
@@ -131,6 +140,12 @@ class ScanViewModel @Inject constructor(
     }
 
     fun processCapturedImage(bitmap: Bitmap) {
+        _uiState.update {
+            it.copy(
+                isCapturing = false,
+                isProcessingCapture = true,
+            )
+        }
         viewModelScope.launch {
             try {
                 when (_uiState.value.captureMode) {
@@ -191,6 +206,7 @@ class ScanViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 captureErrorMessage = message,
+                isCapturing = false,
                 isProcessingCapture = false,
             )
         }

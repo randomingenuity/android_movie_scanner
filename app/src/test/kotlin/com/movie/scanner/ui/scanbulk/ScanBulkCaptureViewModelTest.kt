@@ -176,6 +176,16 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
+    fun onCaptureScreenResumed_clearsStaleCapturingOverlay() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.beginCaptureProcessing()
+        viewModel.onCaptureScreenResumed()
+
+        assertFalse(viewModel.uiState.value.isCapturing)
+        assertFalse(viewModel.uiState.value.isProcessingCapture)
+    }
+
+    @Test
     fun onCaptureScreenResumed_clearsStaleProcessingOverlay() = runTest {
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
         viewModel.beginCaptureProcessing()

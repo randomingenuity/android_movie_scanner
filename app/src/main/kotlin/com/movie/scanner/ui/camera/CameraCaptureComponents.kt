@@ -12,8 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -109,6 +115,35 @@ fun CameraPreview(
         factory = { previewView },
         modifier = Modifier.fillMaxSize(),
     )
+}
+
+/**
+ * Full-screen overlay shown while the camera is capturing or the app is processing a photo.
+ */
+@Composable
+fun CaptureProgressOverlay(
+    isCapturing: Boolean,
+    isProcessingCapture: Boolean,
+) {
+    val statusMessage = when {
+        isCapturing -> "Capturing"
+        isProcessingCapture -> "Processing photo…"
+        else -> return
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = statusMessage,
+            modifier = Modifier.padding(top = 16.dp),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
 }
 
 /**

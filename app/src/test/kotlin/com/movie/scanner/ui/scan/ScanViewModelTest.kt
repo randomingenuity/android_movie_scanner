@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -42,6 +43,16 @@ class ScanViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkObject(BarcodeDecoder)
+    }
+
+    @Test
+    fun beginCaptureProcessing_setsCapturingUntilImageArrives() = runTest {
+        val viewModel = ScanViewModel(apiKeyStore, scanSessionHolder)
+
+        viewModel.beginCaptureProcessing()
+
+        assertTrue(viewModel.uiState.value.isCapturing)
+        assertFalse(viewModel.uiState.value.isProcessingCapture)
     }
 
     @Test
@@ -68,6 +79,18 @@ class ScanViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ScanCaptureMode.COVER, viewModel.uiState.value.captureMode)
+        assertFalse(viewModel.uiState.value.isProcessingCapture)
+    }
+
+    @Test
+    fun onCaptureScreenResumed_staleCapturingOverlay_clearsCapturing() = runTest {
+        every { scanSessionHolder.consumeCoverRetakeRequest() } returns false
+
+        val viewModel = ScanViewModel(apiKeyStore, scanSessionHolder)
+        viewModel.beginCaptureProcessing()
+        viewModel.onCaptureScreenResumed()
+
+        assertFalse(viewModel.uiState.value.isCapturing)
         assertFalse(viewModel.uiState.value.isProcessingCapture)
     }
 

@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,6 +39,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.ui.camera.CameraPreview
+import com.movie.scanner.ui.camera.CaptureProgressOverlay
 import com.movie.scanner.ui.camera.ShutterButton
 
 @Composable
@@ -236,7 +235,7 @@ fun ScanScreen(
                     }
                 }
             }
-            if (!uiState.isProcessingCapture) {
+            if (!uiState.isCapturing && !uiState.isProcessingCapture) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -272,22 +271,10 @@ fun ScanScreen(
                     }
                 }
             }
-            if (uiState.isProcessingCapture) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "Processing photo…",
-                        modifier = Modifier.padding(top = 16.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-            }
+            CaptureProgressOverlay(
+                isCapturing = uiState.isCapturing,
+                isProcessingCapture = uiState.isProcessingCapture,
+            )
         }
     }
 }

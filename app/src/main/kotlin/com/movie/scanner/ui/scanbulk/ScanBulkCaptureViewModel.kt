@@ -32,6 +32,7 @@ sealed interface ScanBulkCaptureEvent {
 data class ScanBulkCaptureUiState(
     val captureMode: ScanCaptureMode = ScanCaptureMode.BARCODE,
     val isConfigured: Boolean = false,
+    val isCapturing: Boolean = false,
     val isProcessingCapture: Boolean = false,
     val pairCount: Int = 0,
     val currentPairNumber: Int = 1,
@@ -145,7 +146,8 @@ class ScanBulkCaptureViewModel @Inject constructor(
     fun beginCaptureProcessing() {
         _uiState.update {
             it.copy(
-                isProcessingCapture = true,
+                isCapturing = true,
+                isProcessingCapture = false,
                 captureErrorMessage = null,
             )
         }
@@ -155,12 +157,19 @@ class ScanBulkCaptureViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 captureErrorMessage = null,
+                isCapturing = false,
                 isProcessingCapture = false,
             )
         }
     }
 
     fun processCapturedImage(bitmap: Bitmap) {
+        _uiState.update {
+            it.copy(
+                isCapturing = false,
+                isProcessingCapture = true,
+            )
+        }
         viewModelScope.launch {
             try {
                 when (_uiState.value.captureMode) {
@@ -251,20 +260,26 @@ class ScanBulkCaptureViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 captureErrorMessage = message,
+                isCapturing = false,
                 isProcessingCapture = false,
             )
         }
     }
 
     /**
-     * Clears a stale processing overlay when the capture screen becomes visible again.
+     * Clears a stale capture overlay when the capture screen becomes visible again.
      */
     fun onCaptureScreenResumed() {
         if (rescanCompletionInProgress) {
             return
         }
-        if (_uiState.value.isProcessingCapture) {
-            _uiState.update { it.copy(isProcessingCapture = false) }
+        if (_uiState.value.isCapturing || _uiState.value.isProcessingCapture) {
+            _uiState.update {
+                it.copy(
+                    isCapturing = false,
+                    isProcessingCapture = false,
+                )
+            }
         }
     }
 
