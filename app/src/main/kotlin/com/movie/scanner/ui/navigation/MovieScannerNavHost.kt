@@ -78,6 +78,11 @@ fun MovieScannerNavHost(
                                 } else {
                                     destination.route
                                 }
+                                // Re-navigating to the visible tab pops/restores saved state and can
+                                // tear down CameraX while the preview is active, freezing bulk capture.
+                                if (currentRoute == route) {
+                                    return@NavigationBarItem
+                                }
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
