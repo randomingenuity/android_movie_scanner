@@ -60,6 +60,7 @@ class ScanBulkQueueViewModel @Inject constructor(
     val navigationEventFlow = navigationEvents.receiveAsFlow()
     private val timestampFormatter = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
     private var shouldContinueProcessing = false
+    private val deferredRecordIds = mutableSetOf<Long>()
 
     init {
         viewModelScope.launch {
@@ -85,6 +86,7 @@ class ScanBulkQueueViewModel @Inject constructor(
         if (_uiState.value.isProcessing) {
             return
         }
+        deferredRecordIds.clear()
         shouldContinueProcessing = true
         viewModelScope.launch {
             processNextRecord()
@@ -96,6 +98,7 @@ class ScanBulkQueueViewModel @Inject constructor(
      */
     fun exitToScan() {
         shouldContinueProcessing = false
+        deferredRecordIds.clear()
         _uiState.update {
             it.copy(
                 isProcessing = false,
@@ -112,6 +115,7 @@ class ScanBulkQueueViewModel @Inject constructor(
      */
     fun prepareForBulkCapture() {
         shouldContinueProcessing = false
+        deferredRecordIds.clear()
         _uiState.update {
             it.copy(
                 isProcessing = false,
@@ -136,6 +140,9 @@ class ScanBulkQueueViewModel @Inject constructor(
         }
         if (!shouldContinueProcessing || !_uiState.value.isProcessing) {
             return
+        }
+        _uiState.value.processingRecordId?.let { recordId ->
+            deferredRecordIds.add(recordId)
         }
         viewModelScope.launch {
             processNextRecord()
@@ -233,6 +240,9 @@ class ScanBulkQueueViewModel @Inject constructor(
     private suspend fun findNextReviewableRecord(): BulkUnprocessedImageEntity? {
         val unprocessedRecords = bulkImageRepository.listUnprocessedRecords()
         for (record in unprocessedRecords) {
+            if (deferredRecordIds.contains(record.id)) {
+                continue
+            }
             if (!record.processingResultsJson.isNullOrBlank()) {
                 return record
             }
