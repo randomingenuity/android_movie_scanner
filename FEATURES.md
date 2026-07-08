@@ -13,7 +13,7 @@
 - **Location** (beside Done when no batch location is set) opens a prompt to name the shelf or bin for this batch; once saved, the location name appears as a clickable link in place of the button and pre-fills the Location field on each review form during bulk processing.
 - Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Processed? (checkmark or timer), delete (trash icon per row). Rows are sorted by ID ascending; **Clear Done** (top right) removes all processed rows and their images.
 - **Process** runs each unprocessed pair through the same identify → review → add flow as single Scan; **Scan** (to its right) returns to bulk capture to add more pairs.
-- During processing, a spinner shows the current item number; Review puts **Stop Processing** in the top bar, plus **Show Cover** and **Rescan** (opens the camera to replace the current pair, re-identify, and return to review on the same queue item).
+- During processing, a spinner shows the current record ID; Review puts **Stop Processing** in the top bar, plus **Show Cover** and **Rescan** (opens the camera to replace the current pair, re-identify, and return to review on the same queue item).
 
 ## List
 

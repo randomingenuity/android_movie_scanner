@@ -40,7 +40,6 @@ data class ScanBulkQueueUiState(
     val records: List<ScanBulkQueueRow> = emptyList(),
     val isProcessing: Boolean = false,
     val processingRecordId: Long? = null,
-    val processingRecordNumber: Int? = null,
     val previewImagePath: String? = null,
 )
 
@@ -91,7 +90,6 @@ class ScanBulkQueueViewModel @Inject constructor(
             it.copy(
                 isProcessing = false,
                 processingRecordId = null,
-                processingRecordNumber = null,
             )
         }
         viewModelScope.launch {
@@ -108,7 +106,6 @@ class ScanBulkQueueViewModel @Inject constructor(
             it.copy(
                 isProcessing = false,
                 processingRecordId = null,
-                processingRecordNumber = null,
             )
         }
     }
@@ -120,7 +117,6 @@ class ScanBulkQueueViewModel @Inject constructor(
                 it.copy(
                     isProcessing = false,
                     processingRecordId = null,
-                    processingRecordNumber = null,
                 )
             }
             return
@@ -158,7 +154,6 @@ class ScanBulkQueueViewModel @Inject constructor(
                     it.copy(
                         isProcessing = false,
                         processingRecordId = null,
-                        processingRecordNumber = null,
                     )
                 }
             }
@@ -184,7 +179,6 @@ class ScanBulkQueueViewModel @Inject constructor(
                 it.copy(
                     isProcessing = false,
                     processingRecordId = null,
-                    processingRecordNumber = null,
                 )
             }
             return
@@ -196,17 +190,14 @@ class ScanBulkQueueViewModel @Inject constructor(
                 it.copy(
                     isProcessing = false,
                     processingRecordId = null,
-                    processingRecordNumber = null,
                 )
             }
             return
         }
-        val recordNumber = _uiState.value.records.indexOfFirst { row -> row.id == nextRecord.id } + 1
         _uiState.update {
             it.copy(
                 isProcessing = true,
                 processingRecordId = nextRecord.id,
-                processingRecordNumber = recordNumber,
             )
         }
         val barcodeBitmap = bulkImageRepository.loadBitmap(nextRecord.barcodeRelFilepath)

@@ -142,7 +142,7 @@ fun ScanBulkQueueScreen(
                             strokeWidth = 4.dp,
                         )
                         Text(
-                            text = uiState.processingRecordNumber?.toString().orEmpty(),
+                            text = uiState.processingRecordId?.toString().orEmpty(),
                             style = MaterialTheme.typography.titleMedium,
                         )
                     }
