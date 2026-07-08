@@ -39,6 +39,7 @@ data class ScanBulkCaptureUiState(
     val statusMessage: String = "Take a photo of the barcode",
     val captureErrorMessage: String? = null,
     val bulkLocation: String = "",
+    val bulkBatchLocation: String = "",
     val showLocationDialog: Boolean = false,
     val bulkDiscType: String? = null,
     val showDiscTypeDialog: Boolean = false,
@@ -54,6 +55,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
+            bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
@@ -92,6 +94,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             pairCount = if (isRescanMode) 0 else _uiState.value.pairCount,
             currentPairNumber = if (isRescanMode) 1 else _uiState.value.pairCount + 1,
+            bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
@@ -141,6 +144,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
         scanSessionHolder.rememberBulkBatchLocation(location)
         _uiState.update {
             it.copy(
+                bulkBatchLocation = location,
                 bulkLocation = location,
                 showLocationDialog = false,
             )

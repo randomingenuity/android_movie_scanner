@@ -288,9 +288,9 @@ fun ScanBulkCaptureScreen(
                                     ),
                                 )
                             }
-                            if (uiState.bulkLocation.isNotBlank()) {
+                            if (uiState.bulkBatchLocation.isNotBlank()) {
                                 Text(
-                                    text = uiState.bulkLocation,
+                                    text = uiState.bulkBatchLocation,
                                     modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -298,7 +298,7 @@ fun ScanBulkCaptureScreen(
                                     ),
                                 )
                             } else {
-                                TextButton(onClick = viewModel::openLocationDialog) {
+                                Button(onClick = viewModel::openLocationDialog) {
                                     Text("Location")
                                 }
                             }
