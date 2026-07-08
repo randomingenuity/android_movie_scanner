@@ -5,22 +5,37 @@ import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.repository.MovieRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class ListUiState(
+    val movies: List<MovieEntity> = emptyList(),
+    val isLoadingMovies: Boolean = true,
+)
 
 @HiltViewModel
 class ListViewModel @Inject constructor(
     private val movieRepository: MovieRepository,
 ) : ViewModel() {
-    val movies: StateFlow<List<MovieEntity>> = movieRepository.observeMovies()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    private val _uiState = MutableStateFlow(ListUiState())
+    val uiState: StateFlow<ListUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            movieRepository.observeMovies().collect { movies ->
+                _uiState.update { state ->
+                    state.copy(
+                        movies = movies,
+                        isLoadingMovies = false,
+                    )
+                }
+            }
+        }
+    }
 
     fun deleteMovie(movieId: Long) {
         viewModelScope.launch {

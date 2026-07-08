@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -67,7 +68,9 @@ private val ListDetailLabelWidth = 128.dp
 fun ListScreen(
     viewModel: ListViewModel = hiltViewModel(),
 ) {
-    val movies by viewModel.movies.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val movies = uiState.movies
+    val showInitialLoading = uiState.isLoadingMovies && movies.isEmpty()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
@@ -127,6 +130,26 @@ fun ListScreen(
             )
         },
     ) { innerPadding ->
+        if (showInitialLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text = "Loading",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
