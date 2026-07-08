@@ -1,17 +1,22 @@
 package com.movie.scanner.ui.list
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
@@ -23,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -38,16 +44,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.util.CsvExporter
+import com.movie.scanner.util.MovieListFormatter
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
 private val ListRowHorizontalPadding = 12.dp
 private val ListRowVerticalPadding = 8.dp
 private val ListActionColumnWidth = 40.dp
+private val ListDetailOverlayMaxHeight = 480.dp
+private val ListDetailLabelWidth = 128.dp
 
 /**
  * Saved-movie list with export, per-row TMDB open, and delete actions.
@@ -62,6 +72,7 @@ fun ListScreen(
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     var showClearDialog by remember { mutableStateOf(false) }
+    var selectedMovie by remember { mutableStateOf<MovieEntity?>(null) }
 
     if (showClearDialog) {
         AlertDialog(
@@ -83,6 +94,13 @@ fun ListScreen(
                     Text("Cancel")
                 }
             },
+        )
+    }
+
+    selectedMovie?.let { movie ->
+        ListMovieDetailOverlay(
+            movie = movie,
+            onDismiss = { selectedMovie = null },
         )
     }
 
@@ -126,6 +144,7 @@ fun ListScreen(
                     items(movies, key = { movie -> movie.id }) { movie ->
                         ListMovieRow(
                             movie = movie,
+                            onRowClick = { selectedMovie = movie },
                             onOpenTmdb = {
                                 movie.tmdbUrl?.let { url -> uriHandler.openUri(url) }
                             },
@@ -178,6 +197,7 @@ private fun ListHeaderRow() {
 @Composable
 private fun ListMovieRow(
     movie: MovieEntity,
+    onRowClick: () -> Unit,
     onOpenTmdb: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -186,6 +206,7 @@ private fun ListMovieRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onRowClick)
             .padding(
                 horizontal = ListRowHorizontalPadding,
                 vertical = ListRowVerticalPadding,
@@ -225,5 +246,92 @@ private fun ListMovieRow(
                 tint = MaterialTheme.colorScheme.error,
             )
         }
+    }
+}
+
+/**
+ * Modal overlay showing every saved catalog field for one list row.
+ */
+@Composable
+private fun ListMovieDetailOverlay(
+    movie: MovieEntity,
+    onDismiss: () -> Unit,
+) {
+    val detailFields = remember(movie) { MovieListFormatter.buildDetailFields(movie) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = ListDetailOverlayMaxHeight)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    detailFields.forEachIndexed { index, (label, value) ->
+                        if (index > 0) {
+                            HorizontalDivider()
+                        }
+                        ListMovieDetailFieldRow(
+                            label = label,
+                            value = value,
+                        )
+                    }
+                }
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                ) {
+                    Text("Close")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One label/value row in the list detail overlay table.
+ */
+@Composable
+private fun ListMovieDetailFieldRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(ListDetailLabelWidth),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }

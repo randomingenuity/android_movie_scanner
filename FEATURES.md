@@ -21,6 +21,7 @@
 ## List
 
 - Browse saved movies, export/share as CSV.
+- Tap a row to open a detail overlay with every saved field; close with the corner icon, the bottom **Close** button, or a tap outside the overlay.
 
 ## Settings
 
