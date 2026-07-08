@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -39,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -185,9 +189,18 @@ fun ListScreen(
                         modifier = Modifier.padding(24.dp),
                     )
                 } else {
+                    val listState = rememberLazyListState()
+
+                    LaunchedEffect(uiState.currentPageIndex) {
+                        listState.scrollToItem(0)
+                    }
+
                     ListHeaderRow()
                     HorizontalDivider()
-                    LazyColumn(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        state = listState,
+                    ) {
                         items(displayedMovies, key = { movie -> movie.id }) { movie ->
                             ListMovieRow(
                                 movie = movie,
@@ -199,6 +212,20 @@ fun ListScreen(
                             )
                             HorizontalDivider()
                         }
+                    }
+                    if (uiState.totalPages > 1) {
+                        ListPaginationBar(
+                            pageRangeLabel = uiState.pageRangeLabel,
+                            currentPageNumber = uiState.currentPageIndex + 1,
+                            totalPages = uiState.totalPages,
+                            hasPreviousPage = uiState.hasPreviousPage,
+                            hasNextPage = uiState.hasNextPage,
+                            onShowPreviousPage = viewModel::showPreviousPage,
+                            onShowNextPage = viewModel::showNextPage,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
                 }
             }
@@ -266,6 +293,61 @@ private fun ListLocationFilterField(
                 )
             }
         }
+    }
+}
+
+/**
+ * Previous/next controls and page summary below the movie table.
+ */
+@Composable
+private fun ListPaginationBar(
+    pageRangeLabel: String,
+    currentPageNumber: Int,
+    totalPages: Int,
+    hasPreviousPage: Boolean,
+    hasNextPage: Boolean,
+    onShowPreviousPage: () -> Unit,
+    onShowNextPage: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = onShowPreviousPage,
+                enabled = hasPreviousPage,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Previous page",
+                )
+            }
+            Text(
+                text = "Page $currentPageNumber of $totalPages",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            IconButton(
+                onClick = onShowNextPage,
+                enabled = hasNextPage,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Next page",
+                )
+            }
+        }
+        Text(
+            text = pageRangeLabel,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.util.ListLocationFilter
+import com.movie.scanner.util.ListPagination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Saved-movie list state: full catalog, location filter selection, and filtered rows.
+ * Saved-movie list state: full catalog, location filter selection, paged rows, and paging metadata.
  */
 data class ListUiState(
     val allMovies: List<MovieEntity> = emptyList(),
@@ -23,6 +24,12 @@ data class ListUiState(
     val selectedLocationFilter: String = ListLocationFilter.ALL_LOCATIONS,
     val locationFilterOptions: List<ListLocationFilter.Option> = emptyList(),
     val displayedMovies: List<MovieEntity> = emptyList(),
+    val currentPageIndex: Int = 0,
+    val totalPages: Int = 0,
+    val totalFilteredCount: Int = 0,
+    val pageRangeLabel: String = "",
+    val hasPreviousPage: Boolean = false,
+    val hasNextPage: Boolean = false,
 )
 
 @HiltViewModel
@@ -30,11 +37,13 @@ class ListViewModel @Inject constructor(
     private val movieRepository: MovieRepository,
 ) : ViewModel() {
     private val selectedLocationFilter = MutableStateFlow(ListLocationFilter.ALL_LOCATIONS)
+    private val currentPageIndex = MutableStateFlow(0)
 
     val uiState: StateFlow<ListUiState> = combine(
         movieRepository.observeMovies(),
         selectedLocationFilter,
-    ) { movies, locationFilter ->
+        currentPageIndex,
+    ) { movies, locationFilter, pageIndex ->
         val locationFilterOptions = ListLocationFilter.buildOptions(movies)
         val activeLocationFilter = if (
             locationFilter != ListLocationFilter.ALL_LOCATIONS &&
@@ -45,12 +54,21 @@ class ListViewModel @Inject constructor(
             locationFilter
         }
 
+        val filteredMovies = ListLocationFilter.filterMovies(movies, activeLocationFilter)
+        val page = ListPagination.paginate(filteredMovies, pageIndex)
+
         ListUiState(
             allMovies = movies,
             isLoadingMovies = false,
             selectedLocationFilter = activeLocationFilter,
             locationFilterOptions = locationFilterOptions,
-            displayedMovies = ListLocationFilter.filterMovies(movies, activeLocationFilter),
+            displayedMovies = page.items,
+            currentPageIndex = page.currentPageIndex,
+            totalPages = page.totalPages,
+            totalFilteredCount = page.totalItemCount,
+            pageRangeLabel = ListPagination.buildPageRangeLabel(page),
+            hasPreviousPage = page.hasPreviousPage,
+            hasNextPage = page.hasNextPage,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,11 +76,40 @@ class ListViewModel @Inject constructor(
         initialValue = ListUiState(),
     )
 
+    init {
+        viewModelScope.launch {
+            uiState.collect { state ->
+                if (state.totalPages > 0 && currentPageIndex.value >= state.totalPages) {
+                    currentPageIndex.value = state.totalPages - 1
+                }
+            }
+        }
+    }
+
     /**
      * Updates the location filter shown at the top of the list screen.
      */
     fun selectLocationFilter(locationFilter: String) {
         selectedLocationFilter.value = locationFilter
+        currentPageIndex.value = 0
+    }
+
+    /**
+     * Shows the previous page of filtered movies when one exists.
+     */
+    fun showPreviousPage() {
+        if (uiState.value.hasPreviousPage) {
+            currentPageIndex.value = uiState.value.currentPageIndex - 1
+        }
+    }
+
+    /**
+     * Shows the next page of filtered movies when one exists.
+     */
+    fun showNextPage() {
+        if (uiState.value.hasNextPage) {
+            currentPageIndex.value = uiState.value.currentPageIndex + 1
+        }
     }
 
     fun deleteMovie(movieId: Long) {
