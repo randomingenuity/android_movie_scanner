@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -56,11 +55,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -548,7 +547,6 @@ private fun ReviewNumberOfDiscsField(
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             IconButton(
                 onClick = { onNumberOfDiscsChange(numberOfDiscs - 1) },
@@ -559,11 +557,16 @@ private fun ReviewNumberOfDiscsField(
                     contentDescription = "Decrease number of discs",
                 )
             }
-            Text(
-                text = numberOfDiscs.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.widthIn(min = 24.dp),
-            )
+            Box(
+                modifier = Modifier.width(40.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = numberOfDiscs.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
             IconButton(
                 onClick = { onNumberOfDiscsChange(numberOfDiscs + 1) },
                 enabled = numberOfDiscs < ReviewViewModel.MAX_NUMBER_OF_DISCS,
