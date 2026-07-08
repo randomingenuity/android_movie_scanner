@@ -78,7 +78,21 @@ class ScanViewModel @Inject constructor(
                 captureMode = ScanCaptureMode.COVER,
                 statusMessage = "Capture the cover photo",
                 captureErrorMessage = null,
+                isProcessingCapture = false,
             )
+        }
+    }
+
+    /**
+     * Clears a stale processing overlay when the capture screen becomes visible again.
+     */
+    fun onCaptureScreenResumed() {
+        if (scanSessionHolder.consumeCoverRetakeRequest()) {
+            resumeCoverCapture()
+            return
+        }
+        if (_uiState.value.isProcessingCapture) {
+            _uiState.update { it.copy(isProcessingCapture = false) }
         }
     }
 
@@ -168,7 +182,7 @@ class ScanViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 captureErrorMessage = null,
-                isProcessingCapture = true,
+                isProcessingCapture = false,
             )
         }
     }

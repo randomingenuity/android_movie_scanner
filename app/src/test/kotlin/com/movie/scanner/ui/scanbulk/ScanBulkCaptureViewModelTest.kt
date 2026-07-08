@@ -171,6 +171,15 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
+    fun onCaptureScreenResumed_clearsStaleProcessingOverlay() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.beginCaptureProcessing()
+        viewModel.onCaptureScreenResumed()
+
+        assertFalse(viewModel.uiState.value.isProcessingCapture)
+    }
+
+    @Test
     fun dismissLocationDialog_closesWithoutSaving() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)

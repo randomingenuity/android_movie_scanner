@@ -253,6 +253,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Clears a stale processing overlay when the capture screen becomes visible again.
+     */
+    fun onCaptureScreenResumed() {
+        if (_uiState.value.isProcessingCapture) {
+            _uiState.update { it.copy(isProcessingCapture = false) }
+        }
+    }
+
     fun finishScanning() {
         viewModelScope.launch {
             navigationEvents.send(ScanBulkCaptureEvent.NavigateToQueue)
@@ -295,6 +304,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
                 )
                 scanSessionHolder.clearBulkRescan()
                 rescanRecordId = null
+                _uiState.update { it.copy(isProcessingCapture = false) }
                 navigationEvents.send(ScanBulkCaptureEvent.NavigateToLoading)
             } catch (exception: Exception) {
                 onCaptureFailed(
