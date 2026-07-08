@@ -1,7 +1,6 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,9 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
@@ -49,19 +46,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalUriHandler
@@ -71,7 +62,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -414,21 +404,30 @@ fun ReviewScreen(
                 }
             }
             if (uiState.tmdbResults.size > 1) {
-                item(key = "tmdb_results") {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = "Confirm movie selection:",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        TmdbResultsSelectionTable(
-                            results = uiState.tmdbResults,
-                            selectedResultId = uiState.selectedTmdbResult?.id,
-                            onSelect = viewModel::selectTmdbResult,
-                        )
-                    }
+                item(key = "tmdb_results_label") {
+                    Text(
+                        text = "Confirm movie selection:",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                item(key = "tmdb_results_header") {
+                    TmdbResultTableHeaderRow()
+                }
+                item(key = "tmdb_results_header_divider") {
+                    HorizontalDivider()
+                }
+                items(
+                    items = uiState.tmdbResults,
+                    key = { result -> result.id },
+                ) { result ->
+                    val uriHandler = LocalUriHandler.current
+                    TmdbResultTableRow(
+                        result = result,
+                        selected = uiState.selectedTmdbResult?.id == result.id,
+                        onSelect = { viewModel.selectTmdbResult(result) },
+                        onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                    )
+                    HorizontalDivider()
                 }
             }
             item(key = "disc_type_field") {
@@ -685,112 +684,32 @@ private fun ReviewDiscTypeField(
 }
 
 private val TmdbResultTableRowHeight = 36.dp
-private const val TmdbResultTableMaxVisibleRows = 3
-private val TmdbResultTableScrollbarWidth = 4.dp
-private val TmdbResultTableScrollbarMinThumbHeight = 24.dp
 
 /**
- * Draws a vertical scrollbar thumb on the trailing edge for a [ScrollState]-driven list.
- */
-private fun Modifier.drawVerticalScrollbar(
-    scrollState: ScrollState,
-    thumbColor: Color,
-    scrollbarWidth: Dp = TmdbResultTableScrollbarWidth,
-): Modifier = drawWithContent {
-    drawContent()
-    if (scrollState.maxValue == 0) {
-        return@drawWithContent
-    }
-
-    val scrollbarWidthPixels = scrollbarWidth.toPx()
-    val viewportHeight = size.height
-    val contentHeight = viewportHeight + scrollState.maxValue
-    val thumbHeight = (viewportHeight / contentHeight * viewportHeight)
-        .coerceAtLeast(TmdbResultTableScrollbarMinThumbHeight.toPx())
-    val scrollRange = viewportHeight - thumbHeight
-    val thumbOffset = scrollRange * scrollState.value / scrollState.maxValue
-
-    drawRoundRect(
-        color = thumbColor,
-        topLeft = Offset(size.width - scrollbarWidthPixels, thumbOffset),
-        size = Size(scrollbarWidthPixels, thumbHeight),
-        cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
-    )
-}
-
-/**
- * Compact TMDB pick list: Name and Year columns, Open icon per row, scroll when more than three results.
+ * Column headers for the TMDB result pick table (Name, Year, Open).
  */
 @Composable
-private fun TmdbResultsSelectionTable(
-    results: List<TmdbSearchResult>,
-    selectedResultId: Int?,
-    onSelect: (TmdbSearchResult) -> Unit,
-) {
-    val uriHandler = LocalUriHandler.current
-    val scrollState = rememberScrollState()
-    val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
-    val tableBodyHeight = TmdbResultTableRowHeight * visibleRowCount
-    val scrollEnabled = results.size > TmdbResultTableMaxVisibleRows
-    val scrollbarThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TmdbResultTableRowHeight)
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Name",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "Year",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.width(48.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Box(modifier = Modifier.width(40.dp))
-        }
-        HorizontalDivider()
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(tableBodyHeight)
-                .then(
-                    if (scrollEnabled) {
-                        Modifier.drawVerticalScrollbar(
-                            scrollState = scrollState,
-                            thumbColor = scrollbarThumbColor,
-                        )
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState, enabled = scrollEnabled)
-                    .padding(end = if (scrollEnabled) 8.dp else 0.dp),
-            ) {
-                results.forEach { result ->
-                    key(result.id) {
-                        TmdbResultTableRow(
-                            result = result,
-                            selected = selectedResultId == result.id,
-                            onSelect = { onSelect(result) },
-                            onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            }
-        }
+private fun TmdbResultTableHeaderRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(TmdbResultTableRowHeight)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Name",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "Year",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.width(48.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(modifier = Modifier.width(40.dp))
     }
 }
 
