@@ -38,16 +38,8 @@ data class ScanBulkCaptureUiState(
     val currentPairNumber: Int = 1,
     val statusMessage: String = "Take a photo of the barcode",
     val captureErrorMessage: String? = null,
-    val bulkLocation: String = "",
     val bulkBatchLocation: String = "",
-    val showLocationDialog: Boolean = false,
-    val bulkDiscType: String? = null,
     val bulkBatchDiscType: String? = null,
-    val showDiscTypeDialog: Boolean = false,
-    val showBulkDefaultsPrompt: Boolean = false,
-    val bulkDefaultsSetupPending: Boolean = false,
-    val bulkDefaultsSetupDiscTypePending: Boolean = false,
-    val bulkDefaultsSetupLocationPending: Boolean = false,
     val isRescanMode: Boolean = false,
 )
 
@@ -61,11 +53,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
         ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
-            bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
-                scanSessionHolder.lastReviewLocation
-            },
             bulkBatchDiscType = scanSessionHolder.bulkBatchDiscType,
-            bulkDiscType = resolveBulkCaptureDiscType(),
         ),
     )
     val uiState: StateFlow<ScanBulkCaptureUiState> = _uiState.asStateFlow()
@@ -96,19 +84,13 @@ class ScanBulkCaptureViewModel @Inject constructor(
         pendingBarcodeBitmap = null
         rescanRecordId = scanSessionHolder.resolveBulkRescanRecordId()
         val isRescanMode = rescanRecordId != null
-        val showBulkDefaultsPrompt = shouldOfferBulkDefaultsSetup(isRescanMode)
         _uiState.value = ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             pairCount = if (isRescanMode) 0 else _uiState.value.pairCount,
             currentPairNumber = if (isRescanMode) 1 else _uiState.value.pairCount + 1,
             bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
-            bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
-                scanSessionHolder.lastReviewLocation
-            },
             bulkBatchDiscType = scanSessionHolder.bulkBatchDiscType,
-            bulkDiscType = resolveBulkCaptureDiscType(),
             isRescanMode = isRescanMode,
-            showBulkDefaultsPrompt = showBulkDefaultsPrompt,
             statusMessage = if (isRescanMode) {
                 "Rescan the barcode"
             } else {
@@ -133,121 +115,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
     }
 
     /**
-     * Closes the bulk defaults prompt without opening disc type or location setup.
+     * Refreshes batch disc type and location labels after shared defaults dialogs save.
      */
-    fun dismissBulkDefaultsPrompt() {
-        scanSessionHolder.markBulkDefaultsPromptHandled()
-        _uiState.update { it.copy(showBulkDefaultsPrompt = false) }
-    }
-
-    /**
-     * Accepts bulk defaults setup and walks through any unset disc type and location prompts.
-     */
-    fun acceptBulkDefaultsSetup() {
-        val discTypeUnset = scanSessionHolder.bulkBatchDiscType.isNullOrBlank()
-        val locationUnset = scanSessionHolder.bulkBatchLocation.isBlank()
-        scanSessionHolder.markBulkDefaultsPromptHandled()
+    fun refreshBatchHeaderDefaults() {
         _uiState.update {
             it.copy(
-                showBulkDefaultsPrompt = false,
-                bulkDefaultsSetupPending = true,
-                bulkDefaultsSetupDiscTypePending = discTypeUnset,
-                bulkDefaultsSetupLocationPending = locationUnset,
+                bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
+                bulkBatchDiscType = scanSessionHolder.bulkBatchDiscType,
             )
         }
-        advanceBulkDefaultsSetup()
-    }
-
-    /**
-     * Opens the bulk location prompt with the current saved location as the draft default.
-     */
-    fun openLocationDialog() {
-        _uiState.update { it.copy(showLocationDialog = true) }
-    }
-
-    /**
-     * Closes the location prompt without persisting draft edits.
-     */
-    fun dismissLocationDialog() {
-        _uiState.update { state ->
-            state.copy(
-                showLocationDialog = false,
-                bulkDefaultsSetupLocationPending = if (state.bulkDefaultsSetupPending) {
-                    false
-                } else {
-                    state.bulkDefaultsSetupLocationPending
-                },
-            )
-        }
-        if (_uiState.value.bulkDefaultsSetupPending) {
-            finishBulkDefaultsSetup()
-        }
-    }
-
-    /**
-     * Saves the bulk location for later review forms and shows it on the capture header.
-     */
-    fun saveBulkLocation(location: String) {
-        scanSessionHolder.rememberBulkBatchLocation(location)
-        _uiState.update { state ->
-            state.copy(
-                bulkBatchLocation = location,
-                bulkLocation = location,
-                showLocationDialog = false,
-                bulkDefaultsSetupLocationPending = if (state.bulkDefaultsSetupPending) {
-                    false
-                } else {
-                    state.bulkDefaultsSetupLocationPending
-                },
-            )
-        }
-        if (_uiState.value.bulkDefaultsSetupPending) {
-            finishBulkDefaultsSetup()
-        }
-    }
-
-    /**
-     * Opens the bulk disc type picker.
-     */
-    fun openDiscTypeDialog() {
-        _uiState.update { it.copy(showDiscTypeDialog = true) }
-    }
-
-    /**
-     * Closes the disc type picker without persisting a selection.
-     */
-    fun dismissDiscTypeDialog() {
-        _uiState.update { state ->
-            state.copy(
-                showDiscTypeDialog = false,
-                bulkDefaultsSetupDiscTypePending = if (state.bulkDefaultsSetupPending) {
-                    false
-                } else {
-                    state.bulkDefaultsSetupDiscTypePending
-                },
-            )
-        }
-        advanceBulkDefaultsSetup()
-    }
-
-    /**
-     * Saves the bulk disc type for later review forms and shows it on the capture header.
-     */
-    fun saveBulkDiscType(discType: String?) {
-        scanSessionHolder.rememberBulkBatchDiscType(discType)
-        _uiState.update { state ->
-            state.copy(
-                bulkBatchDiscType = discType,
-                bulkDiscType = discType,
-                showDiscTypeDialog = false,
-                bulkDefaultsSetupDiscTypePending = if (state.bulkDefaultsSetupPending) {
-                    false
-                } else {
-                    state.bulkDefaultsSetupDiscTypePending
-                },
-            )
-        }
-        advanceBulkDefaultsSetup()
     }
 
     fun beginCaptureProcessing() {
@@ -482,52 +358,5 @@ class ScanBulkCaptureViewModel @Inject constructor(
         val createdScanner = BarcodeDecoder.buildBarcodeScanner()
         barcodeScanner = createdScanner
         return createdScanner
-    }
-
-    private fun shouldOfferBulkDefaultsSetup(isRescanMode: Boolean): Boolean {
-        if (isRescanMode || scanSessionHolder.bulkDefaultsPromptHandled) {
-            return false
-        }
-        val discTypeUnset = scanSessionHolder.bulkBatchDiscType.isNullOrBlank()
-        val locationUnset = scanSessionHolder.bulkBatchLocation.isBlank()
-        return discTypeUnset || locationUnset
-    }
-
-    private fun advanceBulkDefaultsSetup() {
-        if (!_uiState.value.bulkDefaultsSetupPending) {
-            return
-        }
-        if (_uiState.value.bulkDefaultsSetupDiscTypePending) {
-            if (!_uiState.value.showDiscTypeDialog) {
-                openDiscTypeDialog()
-            }
-            return
-        }
-        if (_uiState.value.bulkDefaultsSetupLocationPending) {
-            if (!_uiState.value.showLocationDialog) {
-                openLocationDialog()
-            }
-            return
-        }
-        finishBulkDefaultsSetup()
-    }
-
-    private fun finishBulkDefaultsSetup() {
-        _uiState.update {
-            it.copy(
-                bulkDefaultsSetupPending = false,
-                bulkDefaultsSetupDiscTypePending = false,
-                bulkDefaultsSetupLocationPending = false,
-            )
-        }
-    }
-
-    private fun resolveBulkCaptureDiscType(): String? {
-        val batchDiscType = scanSessionHolder.bulkBatchDiscType
-        if (!batchDiscType.isNullOrBlank()) {
-            return batchDiscType
-        }
-
-        return scanSessionHolder.lastReviewDiscType?.takeIf { discType -> discType.isNotBlank() }
     }
 }

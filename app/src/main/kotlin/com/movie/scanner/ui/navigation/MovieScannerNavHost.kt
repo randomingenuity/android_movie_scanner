@@ -27,6 +27,7 @@ import com.movie.scanner.ui.review.ReviewScreen
 import com.movie.scanner.ui.scan.ScanScreen
 import com.movie.scanner.ui.scanbulk.ScanBulkCaptureScreen
 import com.movie.scanner.ui.scanbulk.ScanBulkQueueScreen
+import com.movie.scanner.ui.scanbulk.BulkDefaultsPromptDialogs
 import com.movie.scanner.ui.settings.SettingsScreen
 
 @Composable
@@ -38,6 +39,10 @@ fun MovieScannerNavHost(
     val currentRoute = backStackEntry?.destination?.route
     val hasUnprocessedBulkRecords by scanBulkNavigationViewModel.hasUnprocessedRecords
         .collectAsStateWithLifecycle()
+    val bulkDefaultsPromptUiState by scanBulkNavigationViewModel.bulkDefaultsPromptUiState
+        .collectAsStateWithLifecycle()
+    val showBulkDefaultsDialogs = currentRoute == AppDestination.ScanBulkCapture.route ||
+        currentRoute == AppDestination.ScanBulkQueue.route
     val bottomDestinations = listOf(
         AppDestination.Scan,
         AppDestination.ScanBulkCapture,
@@ -99,6 +104,17 @@ fun MovieScannerNavHost(
             }
         },
     ) { innerPadding ->
+        if (showBulkDefaultsDialogs) {
+            BulkDefaultsPromptDialogs(
+                uiState = bulkDefaultsPromptUiState,
+                onDismissBulkDefaultsPrompt = scanBulkNavigationViewModel::dismissBulkDefaultsPrompt,
+                onAcceptBulkDefaultsSetup = scanBulkNavigationViewModel::acceptBulkDefaultsSetup,
+                onDismissDiscTypeDialog = scanBulkNavigationViewModel::dismissDiscTypeDialog,
+                onSaveBulkDiscType = scanBulkNavigationViewModel::saveBulkDiscType,
+                onDismissLocationDialog = scanBulkNavigationViewModel::dismissLocationDialog,
+                onSaveBulkLocation = scanBulkNavigationViewModel::saveBulkLocation,
+            )
+        }
         NavHost(
             navController = navController,
             startDestination = AppDestination.Scan.route,
@@ -113,6 +129,7 @@ fun MovieScannerNavHost(
             }
             composable(AppDestination.ScanBulkCapture.route) {
                 ScanBulkCaptureScreen(
+                    scanBulkNavigationViewModel = scanBulkNavigationViewModel,
                     onNavigateToQueue = {
                         navController.navigate(AppDestination.ScanBulkQueue.route) {
                             popUpTo(AppDestination.ScanBulkCapture.route) {
@@ -140,6 +157,7 @@ fun MovieScannerNavHost(
             }
             composable(AppDestination.ScanBulkQueue.route) {
                 ScanBulkQueueScreen(
+                    scanBulkNavigationViewModel = scanBulkNavigationViewModel,
                     onNavigateToReview = {
                         navController.navigate(AppDestination.Review.route)
                     },

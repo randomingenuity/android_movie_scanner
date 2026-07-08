@@ -13,15 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,17 +35,18 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.ui.camera.CameraPreview
 import com.movie.scanner.ui.camera.CaptureProgressOverlay
 import com.movie.scanner.ui.camera.ShutterButton
+import com.movie.scanner.ui.navigation.ScanBulkNavigationViewModel
 
 /**
  * Streamlined bulk capture flow: alternate barcode and cover photos per movie.
  */
 @Composable
 fun ScanBulkCaptureScreen(
+    scanBulkNavigationViewModel: ScanBulkNavigationViewModel,
     onNavigateToQueue: () -> Unit,
     onNavigateToLoading: () -> Unit,
     onNavigateBackToReview: () -> Unit,
@@ -56,6 +54,8 @@ fun ScanBulkCaptureScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val bulkDefaultsPromptUiState by scanBulkNavigationViewModel.bulkDefaultsPromptUiState
+        .collectAsStateWithLifecycle()
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) ==
@@ -68,16 +68,24 @@ fun ScanBulkCaptureScreen(
         hasCameraPermission = granted
     }
 
-    BackHandler(enabled = uiState.showBulkDefaultsPrompt) {
-        viewModel.dismissBulkDefaultsPrompt()
+    BackHandler(enabled = bulkDefaultsPromptUiState.showBulkDefaultsPrompt) {
+        scanBulkNavigationViewModel.dismissBulkDefaultsPrompt()
     }
-    BackHandler(enabled = uiState.showDiscTypeDialog && !uiState.showBulkDefaultsPrompt) {
-        viewModel.dismissDiscTypeDialog()
+    BackHandler(enabled = bulkDefaultsPromptUiState.showDiscTypeDialog && !bulkDefaultsPromptUiState.showBulkDefaultsPrompt) {
+        scanBulkNavigationViewModel.dismissDiscTypeDialog()
     }
-    BackHandler(enabled = uiState.showLocationDialog && !uiState.showDiscTypeDialog && !uiState.showBulkDefaultsPrompt) {
-        viewModel.dismissLocationDialog()
+    BackHandler(
+        enabled = bulkDefaultsPromptUiState.showLocationDialog &&
+            !bulkDefaultsPromptUiState.showDiscTypeDialog &&
+            !bulkDefaultsPromptUiState.showBulkDefaultsPrompt,
+    ) {
+        scanBulkNavigationViewModel.dismissLocationDialog()
     }
-    BackHandler(enabled = !uiState.showBulkDefaultsPrompt && !uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
+    BackHandler(
+        enabled = !bulkDefaultsPromptUiState.showBulkDefaultsPrompt &&
+            !bulkDefaultsPromptUiState.showLocationDialog &&
+            !bulkDefaultsPromptUiState.showDiscTypeDialog,
+    ) {
         if (uiState.isRescanMode) {
             viewModel.cancelRescan()
         } else {
@@ -95,9 +103,19 @@ fun ScanBulkCaptureScreen(
         }
     }
 
-    LifecycleResumeEffect(viewModel) {
+    LifecycleResumeEffect(viewModel, uiState.isRescanMode) {
+        scanBulkNavigationViewModel.offerBulkDefaultsPromptIfNeeded(skipForRescan = uiState.isRescanMode)
         viewModel.onCaptureScreenResumed()
+        viewModel.refreshBatchHeaderDefaults()
         onPauseOrDispose { }
+    }
+
+    LaunchedEffect(
+        bulkDefaultsPromptUiState.showBulkDefaultsPrompt,
+        bulkDefaultsPromptUiState.showDiscTypeDialog,
+        bulkDefaultsPromptUiState.showLocationDialog,
+    ) {
+        viewModel.refreshBatchHeaderDefaults()
     }
 
     LaunchedEffect(Unit) {
@@ -150,8 +168,6 @@ fun ScanBulkCaptureScreen(
     }
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
-    var locationDraft by remember { mutableStateOf("") }
-    val discTypeOptions = remember { listOf(null) + DiscType.options }
     val headerLabel = if (uiState.isRescanMode) {
         if (uiState.captureMode == ScanCaptureMode.BARCODE) {
             "Rescan Barcode"
@@ -162,96 +178,6 @@ fun ScanBulkCaptureScreen(
         "Barcode ${uiState.currentPairNumber}"
     } else {
         "Cover ${uiState.currentPairNumber}"
-    }
-
-    LaunchedEffect(uiState.showLocationDialog) {
-        if (uiState.showLocationDialog) {
-            locationDraft = uiState.bulkLocation
-        }
-    }
-
-    if (uiState.showBulkDefaultsPrompt) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissBulkDefaultsPrompt,
-            text = {
-                Text("Your defaults are not set for this session. Set now?")
-            },
-            confirmButton = {
-                Button(
-                    onClick = viewModel::acceptBulkDefaultsSetup,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                    ),
-                ) {
-                    Text("Yes")
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = viewModel::dismissBulkDefaultsPrompt,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text("No")
-                }
-            },
-        )
-    }
-
-    if (uiState.showDiscTypeDialog) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissDiscTypeDialog,
-            title = { Text("Disc Type") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    discTypeOptions.forEach { discType ->
-                        TextButton(
-                            onClick = { viewModel.saveBulkDiscType(discType) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = discType ?: "None",
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDiscTypeDialog) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
-
-    if (uiState.showLocationDialog) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissLocationDialog,
-            title = { Text("Set Location") },
-            text = {
-                OutlinedTextField(
-                    value = locationDraft,
-                    onValueChange = { locationDraft = it },
-                    label = { Text("Location name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.saveBulkLocation(locationDraft) },
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissLocationDialog) {
-                    Text("Cancel")
-                }
-            },
-        )
     }
 
     Scaffold { innerPadding ->
@@ -307,13 +233,13 @@ fun ScanBulkCaptureScreen(
                         ) {
                             val bulkBatchDiscTypeLabel = uiState.bulkBatchDiscType
                             if (bulkBatchDiscTypeLabel.isNullOrBlank()) {
-                                Button(onClick = viewModel::openDiscTypeDialog) {
+                                Button(onClick = scanBulkNavigationViewModel::openDiscTypeDialog) {
                                     Text("Disc Type")
                                 }
                             } else {
                                 Text(
                                     text = bulkBatchDiscTypeLabel,
-                                    modifier = Modifier.clickable(onClick = viewModel::openDiscTypeDialog),
+                                    modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openDiscTypeDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         textDecoration = TextDecoration.Underline,
@@ -323,14 +249,14 @@ fun ScanBulkCaptureScreen(
                             if (uiState.bulkBatchLocation.isNotBlank()) {
                                 Text(
                                     text = uiState.bulkBatchLocation,
-                                    modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
+                                    modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openLocationDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         textDecoration = TextDecoration.Underline,
                                     ),
                                 )
                             } else {
-                                Button(onClick = viewModel::openLocationDialog) {
+                                Button(onClick = scanBulkNavigationViewModel::openLocationDialog) {
                                     Text("Location")
                                 }
                             }

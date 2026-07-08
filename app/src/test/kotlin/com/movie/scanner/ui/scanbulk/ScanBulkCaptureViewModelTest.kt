@@ -62,56 +62,6 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
-    fun prepareScreen_showsDefaultsPromptWhenBatchDefaultsAreUnset() = runTest {
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.prepareScreen()
-
-        assertTrue(viewModel.uiState.value.showBulkDefaultsPrompt)
-    }
-
-    @Test
-    fun prepareScreen_skipsDefaultsPromptWhenBatchDefaultsAreSet() = runTest {
-        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
-        every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
-
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.prepareScreen()
-
-        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
-    }
-
-    @Test
-    fun dismissBulkDefaultsPrompt_marksPromptHandledAndClosesDialog() = runTest {
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.prepareScreen()
-
-        viewModel.dismissBulkDefaultsPrompt()
-
-        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
-        verify { scanSessionHolder.markBulkDefaultsPromptHandled() }
-    }
-
-    @Test
-    fun acceptBulkDefaultsSetup_opensDiscTypeThenLocationPrompts() = runTest {
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.prepareScreen()
-
-        viewModel.acceptBulkDefaultsSetup()
-
-        assertFalse(viewModel.uiState.value.showBulkDefaultsPrompt)
-        assertTrue(viewModel.uiState.value.showDiscTypeDialog)
-
-        viewModel.dismissDiscTypeDialog()
-
-        assertTrue(viewModel.uiState.value.showLocationDialog)
-
-        viewModel.dismissLocationDialog()
-
-        assertFalse(viewModel.uiState.value.bulkDefaultsSetupPending)
-        verify { scanSessionHolder.markBulkDefaultsPromptHandled() }
-    }
-
-    @Test
     fun processCapturedImage_cover_returnsToBarcodeBeforeSaveCompletes() = runTest {
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
         viewModel.prepareScreen()
@@ -158,57 +108,15 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
-    fun saveBulkLocation_persistsLocationAndClosesDialog() = runTest {
+    fun refreshBatchHeaderDefaults_readsBatchValuesFromSession() = runTest {
+        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
+
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.openLocationDialog()
-        assertTrue(viewModel.uiState.value.showLocationDialog)
+        viewModel.refreshBatchHeaderDefaults()
 
-        viewModel.saveBulkLocation("Shelf A")
-        advanceUntilIdle()
-
-        assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
-        assertEquals("Shelf A", viewModel.uiState.value.bulkBatchLocation)
-        assertFalse(viewModel.uiState.value.showLocationDialog)
-        verify { scanSessionHolder.rememberBulkBatchLocation("Shelf A") }
-    }
-
-    @Test
-    fun saveBulkDiscType_persistsDiscTypeAndClosesDialog() = runTest {
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.openDiscTypeDialog()
-        assertTrue(viewModel.uiState.value.showDiscTypeDialog)
-
-        viewModel.saveBulkDiscType("Blu-Ray")
-        advanceUntilIdle()
-
-        assertEquals("Blu-Ray", viewModel.uiState.value.bulkDiscType)
         assertEquals("Blu-Ray", viewModel.uiState.value.bulkBatchDiscType)
-        assertFalse(viewModel.uiState.value.showDiscTypeDialog)
-        verify { scanSessionHolder.rememberBulkBatchDiscType("Blu-Ray") }
-    }
-
-    @Test
-    fun dismissDiscTypeDialog_closesWithoutSaving() = runTest {
-        every { scanSessionHolder.lastReviewDiscType } returns "DVD"
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.openDiscTypeDialog()
-        viewModel.dismissDiscTypeDialog()
-
-        assertFalse(viewModel.uiState.value.showDiscTypeDialog)
-        assertEquals("DVD", viewModel.uiState.value.bulkDiscType)
-        assertEquals(null, viewModel.uiState.value.bulkBatchDiscType)
-        verify(exactly = 0) { scanSessionHolder.rememberBulkBatchDiscType(any()) }
-    }
-
-    @Test
-    fun init_prefillsDiscTypeDraftWithoutMarkingBatchDiscTypeSet() = runTest {
-        every { scanSessionHolder.lastReviewDiscType } returns "DVD"
-        every { scanSessionHolder.bulkBatchDiscType } returns null
-
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-
-        assertEquals("DVD", viewModel.uiState.value.bulkDiscType)
-        assertEquals(null, viewModel.uiState.value.bulkBatchDiscType)
+        assertEquals("Shelf A", viewModel.uiState.value.bulkBatchLocation)
     }
 
     @Test
@@ -286,29 +194,5 @@ class ScanBulkCaptureViewModelTest {
         viewModel.onCaptureScreenResumed()
 
         assertFalse(viewModel.uiState.value.isProcessingCapture)
-    }
-
-    @Test
-    fun init_prefillsLocationDraftWithoutMarkingBatchLocationSet() = runTest {
-        every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
-        every { scanSessionHolder.bulkBatchLocation } returns ""
-
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-
-        assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
-        assertEquals("", viewModel.uiState.value.bulkBatchLocation)
-    }
-
-    @Test
-    fun dismissLocationDialog_closesWithoutSaving() = runTest {
-        every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
-        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
-        viewModel.openLocationDialog()
-        viewModel.dismissLocationDialog()
-
-        assertFalse(viewModel.uiState.value.showLocationDialog)
-        assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
-        assertEquals("", viewModel.uiState.value.bulkBatchLocation)
-        verify(exactly = 0) { scanSessionHolder.rememberReviewLocation(any()) }
     }
 }

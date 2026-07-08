@@ -43,6 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.movie.scanner.ui.navigation.ScanBulkNavigationViewModel
 
 /** Fixed width for the status column so the header stays on one line. */
 private val BulkQueueStatusColumnWidth = 84.dp
@@ -60,18 +61,45 @@ private val BulkQueueReadyTimerColor = Color(0xFF2E7D32)
  */
 @Composable
 fun ScanBulkQueueScreen(
+    scanBulkNavigationViewModel: ScanBulkNavigationViewModel,
     onNavigateToReview: () -> Unit,
     onNavigateToCapture: () -> Unit,
     onNavigateToScan: () -> Unit,
     viewModel: ScanBulkQueueViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val bulkDefaultsPromptUiState by scanBulkNavigationViewModel.bulkDefaultsPromptUiState
+        .collectAsStateWithLifecycle()
     val hasDoneRecords = uiState.records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
     val showInitialLoading = uiState.isLoadingRecords && uiState.records.isEmpty()
 
-    BackHandler {
+    BackHandler(enabled = bulkDefaultsPromptUiState.showBulkDefaultsPrompt) {
+        scanBulkNavigationViewModel.dismissBulkDefaultsPrompt()
+    }
+    BackHandler(
+        enabled = bulkDefaultsPromptUiState.showDiscTypeDialog && !bulkDefaultsPromptUiState.showBulkDefaultsPrompt,
+    ) {
+        scanBulkNavigationViewModel.dismissDiscTypeDialog()
+    }
+    BackHandler(
+        enabled = bulkDefaultsPromptUiState.showLocationDialog &&
+            !bulkDefaultsPromptUiState.showDiscTypeDialog &&
+            !bulkDefaultsPromptUiState.showBulkDefaultsPrompt,
+    ) {
+        scanBulkNavigationViewModel.dismissLocationDialog()
+    }
+    BackHandler(
+        enabled = !bulkDefaultsPromptUiState.showBulkDefaultsPrompt &&
+            !bulkDefaultsPromptUiState.showLocationDialog &&
+            !bulkDefaultsPromptUiState.showDiscTypeDialog,
+    ) {
         viewModel.prepareForBulkCapture()
         onNavigateToCapture()
+    }
+
+    LifecycleResumeEffect(Unit) {
+        scanBulkNavigationViewModel.offerBulkDefaultsPromptIfNeeded()
+        onPauseOrDispose { }
     }
 
     LifecycleResumeEffect(viewModel) {
