@@ -33,15 +33,6 @@ data class ReviewUiState(
     val barcodeSuggestion: MovieGuess? = null,
     val tmdbResults: List<TmdbSearchResult> = emptyList(),
     val selectedTmdbResult: TmdbSearchResult? = null,
-    val isSearching: Boolean = false,
-    val searchError: String? = null,
-    val duplicateMessage: String? = null,
-    val actionMessage: String? = null,
-    val isAddEnabled: Boolean = false,
-    val showReplaceAdd: Boolean = false,
-    val showForceAdd: Boolean = false,
-    val showForceReplace: Boolean = false,
-    val isForceAddEnabled: Boolean = false,
     val showDiscardDialog: Boolean = false,
     val finished: Boolean = false,
     val addedTitle: String? = null,
@@ -53,6 +44,22 @@ data class ReviewUiState(
     val bulkCoverAbsolutePath: String? = null,
     val showBulkCoverPreview: Boolean = false,
     val finishedFromBulkProcessing: Boolean = false,
+)
+
+/**
+ * Add/search action affordances updated after duplicate checks; kept separate so scroll does not
+ * recompose the whole form when only button labels or enablement change.
+ */
+data class ReviewActionState(
+    val isAddEnabled: Boolean = false,
+    val showReplaceAdd: Boolean = false,
+    val showForceAdd: Boolean = false,
+    val showForceReplace: Boolean = false,
+    val isForceAddEnabled: Boolean = false,
+    val isSearching: Boolean = false,
+    val searchError: String? = null,
+    val duplicateMessage: String? = null,
+    val actionMessage: String? = null,
 )
 
 /**
@@ -76,12 +83,15 @@ class ReviewViewModel @Inject constructor(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
+    private val _actionState = MutableStateFlow(ReviewActionState())
+    val actionState: StateFlow<ReviewActionState> = _actionState.asStateFlow()
     private var loadedExistingEntryKey: String? = null
     private var refreshActionStateJob: Job? = null
     private var titleUpdateJob: Job? = null
     private var yearUpdateJob: Job? = null
     private var seasonUpdateJob: Job? = null
     private var barcodeUpdateJob: Job? = null
+    private var locationUpdateJob: Job? = null
 
     init {
         val coverGuess = scanSessionHolder.coverGuess
@@ -143,7 +153,8 @@ class ReviewViewModel @Inject constructor(
         titleUpdateJob?.cancel()
         titleUpdateJob = viewModelScope.launch {
             delay(FORM_FIELD_DEBOUNCE_MS)
-            _uiState.update { it.copy(title = value, duplicateMessage = null, actionMessage = null) }
+            _uiState.update { it.copy(title = value) }
+            clearActionMessages()
             refreshActionStateNow()
         }
     }
@@ -152,7 +163,8 @@ class ReviewViewModel @Inject constructor(
         yearUpdateJob?.cancel()
         yearUpdateJob = viewModelScope.launch {
             delay(FORM_FIELD_DEBOUNCE_MS)
-            _uiState.update { it.copy(year = value, duplicateMessage = null, actionMessage = null) }
+            _uiState.update { it.copy(year = value) }
+            clearActionMessages()
             refreshActionStateNow()
         }
     }
@@ -162,13 +174,8 @@ class ReviewViewModel @Inject constructor(
         seasonUpdateJob?.cancel()
         seasonUpdateJob = viewModelScope.launch {
             delay(FORM_FIELD_DEBOUNCE_MS)
-            _uiState.update {
-                it.copy(
-                    seasonNumberInput = filtered,
-                    duplicateMessage = null,
-                    actionMessage = null,
-                )
-            }
+            _uiState.update { it.copy(seasonNumberInput = filtered) }
+            clearActionMessages()
             refreshActionStateNow()
         }
     }
@@ -180,19 +187,15 @@ class ReviewViewModel @Inject constructor(
         barcodeUpdateJob?.cancel()
         barcodeUpdateJob = viewModelScope.launch {
             delay(FORM_FIELD_DEBOUNCE_MS)
-            _uiState.update { it.copy(barcode = sanitized, duplicateMessage = null, actionMessage = null) }
+            _uiState.update { it.copy(barcode = sanitized) }
+            clearActionMessages()
         }
     }
 
     fun commitBarcode(value: String) {
         barcodeUpdateJob?.cancel()
-        _uiState.update {
-            it.copy(
-                barcode = removeNewlinesFromBarcode(value),
-                duplicateMessage = null,
-                actionMessage = null,
-            )
-        }
+        _uiState.update { it.copy(barcode = removeNewlinesFromBarcode(value)) }
+        clearActionMessages()
     }
 
     /**
@@ -208,40 +211,47 @@ class ReviewViewModel @Inject constructor(
                 location = formFields.location,
                 seasonNumberInput = IntegerInput.filterDigits(formFields.seasonNumberInput),
                 numberOfDiscsInput = IntegerInput.filterDigits(formFields.numberOfDiscsInput),
-                duplicateMessage = null,
-                actionMessage = null,
             )
         }
         scanSessionHolder.rememberReviewLocation(formFields.location)
+        clearActionMessages()
     }
 
     fun updateDiscType(discType: String?) {
-        _uiState.update { it.copy(discType = discType, actionMessage = null) }
+        _uiState.update { it.copy(discType = discType) }
+        clearActionMessages()
+    }
+
+    fun scheduleLocationUpdate(value: String) {
+        locationUpdateJob?.cancel()
+        locationUpdateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            scanSessionHolder.rememberReviewLocation(value)
+            _uiState.update { it.copy(location = value) }
+            clearActionMessages()
+        }
     }
 
     fun updateLocation(value: String) {
+        locationUpdateJob?.cancel()
         scanSessionHolder.rememberReviewLocation(value)
-        _uiState.update { it.copy(location = value, actionMessage = null) }
+        _uiState.update { it.copy(location = value) }
+        clearActionMessages()
     }
 
     fun updateSeasonNumberInput(value: String) {
         _uiState.update {
-            it.copy(
-                seasonNumberInput = IntegerInput.filterDigits(value),
-                duplicateMessage = null,
-                actionMessage = null,
-            )
+            it.copy(seasonNumberInput = IntegerInput.filterDigits(value))
         }
+        clearActionMessages()
         scheduleRefreshActionState()
     }
 
     fun updateNumberOfDiscsInput(value: String) {
         _uiState.update {
-            it.copy(
-                numberOfDiscsInput = IntegerInput.filterDigits(value),
-                actionMessage = null,
-            )
+            it.copy(numberOfDiscsInput = IntegerInput.filterDigits(value))
         }
+        clearActionMessages()
     }
 
     fun applyBarcodeSuggestion() {
@@ -250,10 +260,9 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 title = suggestion.title,
                 year = suggestion.year,
-                duplicateMessage = null,
-                actionMessage = null,
             )
         }
+        clearActionMessages()
         viewModelScope.launch { refreshActionStateNow() }
     }
 
@@ -263,10 +272,9 @@ class ReviewViewModel @Inject constructor(
                 selectedTmdbResult = result,
                 title = result.title,
                 year = result.year.ifBlank { it.year },
-                duplicateMessage = null,
-                actionMessage = null,
             )
         }
+        clearActionMessages()
         viewModelScope.launch { refreshActionStateNow() }
     }
 
@@ -279,15 +287,24 @@ class ReviewViewModel @Inject constructor(
         val year = formFields.year.trim().ifBlank { null }
         viewModelScope.launch {
             refreshActionStateNow()
-            _uiState.update { it.copy(isSearching = true, searchError = null) }
+            _actionState.update { it.copy(isSearching = true, searchError = null) }
             val result = tmdbRepository.searchMovies(title, year)
             _uiState.update {
                 if (result.isSuccess) {
                     val results = result.getOrDefault(emptyList())
                     it.copy(
-                        isSearching = false,
                         tmdbResults = results,
                         selectedTmdbResult = results.firstOrNull(),
+                    )
+                } else {
+                    it
+                }
+            }
+            _actionState.update {
+                if (result.isSuccess) {
+                    val results = result.getOrDefault(emptyList())
+                    it.copy(
+                        isSearching = false,
                         searchError = if (results.isEmpty()) "No matches found." else null,
                     )
                 } else {
@@ -319,7 +336,7 @@ class ReviewViewModel @Inject constructor(
             if (result.isSuccess) {
                 finishAfterAdd(state.title)
             } else {
-                _uiState.update {
+                _actionState.update {
                     it.copy(actionMessage = result.exceptionOrNull()?.message ?: "Could not add movie.")
                 }
             }
@@ -342,7 +359,7 @@ class ReviewViewModel @Inject constructor(
             if (result.isSuccess) {
                 finishAfterAdd(state.title)
             } else {
-                _uiState.update {
+                _actionState.update {
                     it.copy(actionMessage = result.exceptionOrNull()?.message ?: "Could not force add movie.")
                 }
             }
@@ -467,16 +484,16 @@ class ReviewViewModel @Inject constructor(
             null
         }
         if (state.featureType == FeatureType.TV && state.seasonNumberInput.isBlank()) {
-            _uiState.update { it.copy(actionMessage = "Season is required.") }
+            _actionState.update { it.copy(actionMessage = "Season is required.") }
             return null
         }
         if (state.featureType == FeatureType.TV && seasonNumber == null) {
-            _uiState.update { it.copy(actionMessage = "Season must be a whole number.") }
+            _actionState.update { it.copy(actionMessage = "Season must be a whole number.") }
             return null
         }
         val numberOfDiscs = IntegerInput.parseOptionalInt(state.numberOfDiscsInput)
         if (state.numberOfDiscsInput.isNotBlank() && numberOfDiscs == null) {
-            _uiState.update { it.copy(actionMessage = "Number of Discs must be a whole number.") }
+            _actionState.update { it.copy(actionMessage = "Number of Discs must be a whole number.") }
             return null
         }
         return ReviewItemDetails(
@@ -547,6 +564,16 @@ class ReviewViewModel @Inject constructor(
         yearUpdateJob?.cancel()
         seasonUpdateJob?.cancel()
         barcodeUpdateJob?.cancel()
+        locationUpdateJob?.cancel()
+    }
+
+    private fun clearActionMessages() {
+        _actionState.update {
+            it.copy(
+                duplicateMessage = null,
+                actionMessage = null,
+            )
+        }
     }
 
     private fun scheduleRefreshActionState() {
@@ -610,7 +637,7 @@ class ReviewViewModel @Inject constructor(
             FeatureType.TV -> showForceAdd && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> showForceAdd && willOverwriteTitleAndYear
         }
-        _uiState.update {
+        _actionState.update {
             it.copy(
                 isAddEnabled = yearFilled && seasonFilled && selected != null,
                 showReplaceAdd = showReplaceAdd,

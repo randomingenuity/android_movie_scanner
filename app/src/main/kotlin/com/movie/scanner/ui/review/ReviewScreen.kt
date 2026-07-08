@@ -14,17 +14,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -76,27 +75,27 @@ fun ReviewScreen(
     var locationInput by remember { mutableStateOf(uiState.location) }
     var seasonInput by remember { mutableStateOf(uiState.seasonNumberInput) }
     var discsInput by remember { mutableStateOf(uiState.numberOfDiscsInput) }
-    LaunchedEffect(uiState.title) {
+
+    // Sync ViewModel-driven form values in one pass to avoid staggered recompositions.
+    LaunchedEffect(
+        uiState.title,
+        uiState.year,
+        uiState.location,
+        uiState.seasonNumberInput,
+        uiState.numberOfDiscsInput,
+    ) {
         if (titleInput != uiState.title) {
             titleInput = uiState.title
         }
-    }
-    LaunchedEffect(uiState.year) {
         if (yearInput != uiState.year) {
             yearInput = uiState.year
         }
-    }
-    LaunchedEffect(uiState.location) {
         if (locationInput != uiState.location) {
             locationInput = uiState.location
         }
-    }
-    LaunchedEffect(uiState.seasonNumberInput) {
         if (seasonInput != uiState.seasonNumberInput) {
             seasonInput = uiState.seasonNumberInput
         }
-    }
-    LaunchedEffect(uiState.numberOfDiscsInput) {
         if (discsInput != uiState.numberOfDiscsInput) {
             discsInput = uiState.numberOfDiscsInput
         }
@@ -182,14 +181,23 @@ fun ReviewScreen(
         val barcodeLabel = remember(barcodeFieldValue.text) {
             BarcodeDecoder.buildBarcodeLabel(barcodeFieldValue.text)
         }
-        val formFields = ReviewFormFields(
-            title = titleInput,
-            year = yearInput,
-            barcode = barcodeFieldValue.text,
-            location = locationInput,
-            seasonNumberInput = seasonInput,
-            numberOfDiscsInput = discsInput,
-        )
+        val formFields = remember(
+            titleInput,
+            yearInput,
+            barcodeFieldValue.text,
+            locationInput,
+            seasonInput,
+            discsInput,
+        ) {
+            ReviewFormFields(
+                title = titleInput,
+                year = yearInput,
+                barcode = barcodeFieldValue.text,
+                location = locationInput,
+                seasonNumberInput = seasonInput,
+                numberOfDiscsInput = discsInput,
+            )
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -380,43 +388,25 @@ fun ReviewScreen(
             }
             item(key = "action_buttons") {
                 ReviewActionButtons(
+                    viewModel = viewModel,
                     formFields = formFields,
-                    isAddEnabled = uiState.isAddEnabled,
-                    showReplaceAdd = uiState.showReplaceAdd,
-                    showForceAdd = uiState.showForceAdd,
-                    showForceReplace = uiState.showForceReplace,
-                    isForceAddEnabled = uiState.isForceAddEnabled,
-                    isSearching = uiState.isSearching,
-                    onSearchTmdb = viewModel::searchTmdb,
-                    onAddMovie = viewModel::addMovie,
-                    onSkipMovie = viewModel::skipMovie,
-                    onForceAddMovie = viewModel::forceAddMovie,
                 )
             }
-            uiState.searchError?.let { error ->
-                item(key = "search_error") {
-                    Text(text = error, color = MaterialTheme.colorScheme.error)
-                }
+            item(key = "search_error") {
+                ReviewSearchErrorMessage(viewModel = viewModel)
             }
-            uiState.duplicateMessage?.let { message ->
-                item(key = "duplicate_message") {
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+            item(key = "duplicate_message") {
+                ReviewDuplicateMessage(viewModel = viewModel)
             }
-            uiState.actionMessage?.let { message ->
-                item(key = "action_message") {
-                    Text(text = message, color = MaterialTheme.colorScheme.error)
-                }
+            item(key = "action_message") {
+                ReviewActionMessage(viewModel = viewModel)
             }
             item(key = "location_field") {
                 OutlinedTextField(
                     value = locationInput,
                     onValueChange = {
                         locationInput = it
-                        viewModel.updateLocation(it)
+                        viewModel.scheduleLocationUpdate(it)
                     },
                     label = { Text("Location") },
                     modifier = Modifier.fillMaxWidth(),
@@ -432,18 +422,10 @@ fun ReviewScreen(
  */
 @Composable
 private fun ReviewActionButtons(
+    viewModel: ReviewViewModel,
     formFields: ReviewFormFields,
-    isAddEnabled: Boolean,
-    showReplaceAdd: Boolean,
-    showForceAdd: Boolean,
-    showForceReplace: Boolean,
-    isForceAddEnabled: Boolean,
-    isSearching: Boolean,
-    onSearchTmdb: (ReviewFormFields) -> Unit,
-    onAddMovie: (ReviewFormFields) -> Unit,
-    onSkipMovie: () -> Unit,
-    onForceAddMovie: (ReviewFormFields) -> Unit,
 ) {
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -453,73 +435,110 @@ private fun ReviewActionButtons(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(onClick = { onSearchTmdb(formFields) }) {
+            Button(onClick = { viewModel.searchTmdb(formFields) }) {
                 Text("Re-search TMDB")
             }
             Button(
-                onClick = { onAddMovie(formFields) },
-                enabled = isAddEnabled,
+                onClick = { viewModel.addMovie(formFields) },
+                enabled = actionState.isAddEnabled,
             ) {
-                Text(if (showReplaceAdd) "Replace" else "Add")
+                Text(if (actionState.showReplaceAdd) "Replace" else "Add")
             }
-            OutlinedButton(onClick = onSkipMovie) {
+            OutlinedButton(onClick = viewModel::skipMovie) {
                 Text("Skip")
             }
-            if (isSearching) {
+            if (actionState.isSearching) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
-        if (showForceAdd) {
+        if (actionState.showForceAdd) {
             OutlinedButton(
-                onClick = { onForceAddMovie(formFields) },
-                enabled = isForceAddEnabled,
+                onClick = { viewModel.forceAddMovie(formFields) },
+                enabled = actionState.isForceAddEnabled,
             ) {
-                Text(if (showForceReplace) "Force Replace" else "Force Add")
+                Text(if (actionState.showForceReplace) "Force Replace" else "Force Add")
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReviewSearchErrorMessage(viewModel: ReviewViewModel) {
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    actionState.searchError?.let { error ->
+        Text(text = error, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+@Composable
+private fun ReviewDuplicateMessage(viewModel: ReviewViewModel) {
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    actionState.duplicateMessage?.let { message ->
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun ReviewActionMessage(viewModel: ReviewViewModel) {
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    actionState.actionMessage?.let { message ->
+        Text(text = message, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/**
+ * Disc type picker using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
+ */
 @Composable
 private fun ReviewDiscTypeField(
     selectedDiscType: String?,
     onDiscTypeSelected: (String?) -> Unit,
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
     val discTypeOptions = remember { listOf(null) + DiscType.options }
-    ExposedDropdownMenuBox(
-        expanded = menuExpanded,
-        onExpandedChange = { menuExpanded = it },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        OutlinedTextField(
-            value = selectedDiscType.orEmpty(),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Disc Type") },
-            placeholder = { Text("Optional") },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuExpanded)
+    OutlinedTextField(
+        value = selectedDiscType.orEmpty(),
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Disc Type") },
+        placeholder = { Text("Optional") },
+        trailingIcon = {
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+            )
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true },
+    )
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {},
+            title = { Text("Disc Type") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    discTypeOptions.forEach { discType ->
+                        TextButton(
+                            onClick = {
+                                onDiscTypeSelected(discType)
+                                showDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = discType ?: "None",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
             },
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
         )
-        ExposedDropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-        ) {
-            discTypeOptions.forEach { discType ->
-                DropdownMenuItem(
-                    text = { Text(discType ?: "None") },
-                    onClick = {
-                        onDiscTypeSelected(discType)
-                        menuExpanded = false
-                    },
-                )
-            }
-        }
     }
 }
 

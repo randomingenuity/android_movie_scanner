@@ -99,6 +99,20 @@ class ScanBulkQueueViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Clears active queue processing before opening bulk capture to add more pairs.
+     */
+    fun prepareForBulkCapture() {
+        shouldContinueProcessing = false
+        _uiState.update {
+            it.copy(
+                isProcessing = false,
+                processingRecordId = null,
+                processingRecordNumber = null,
+            )
+        }
+    }
+
     fun resumeProcessingIfNeeded() {
         if (scanSessionHolder.consumeBulkProcessingStopRequested()) {
             shouldContinueProcessing = false

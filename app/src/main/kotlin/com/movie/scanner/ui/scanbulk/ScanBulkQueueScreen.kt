@@ -67,6 +67,7 @@ fun ScanBulkQueueScreen(
     val doneRecords = uiState.records.filter { row -> row.wasProcessed }
 
     BackHandler {
+        viewModel.prepareForBulkCapture()
         onNavigateToCapture()
     }
 
@@ -97,6 +98,21 @@ fun ScanBulkQueueScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            if (doneRecords.isNotEmpty() && !uiState.isProcessing) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = BulkQueueRowHorizontalPadding,
+                            vertical = 8.dp,
+                        ),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    Button(onClick = viewModel::clearDoneRecords) {
+                        Text("Clear Done")
+                    }
+                }
+            }
             BulkQueueHeaderRow()
             HorizontalDivider()
             LazyColumn(
@@ -121,20 +137,6 @@ fun ScanBulkQueueScreen(
                         onDeleteClick = { viewModel.deleteRecord(row.id) },
                     )
                     HorizontalDivider()
-                }
-                if (doneRecords.isNotEmpty() && !uiState.isProcessing) {
-                    item(key = "clear-done") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Button(onClick = viewModel::clearDoneRecords) {
-                                Text("Clear Done")
-                            }
-                        }
-                    }
                 }
             }
             Box(
@@ -165,7 +167,12 @@ fun ScanBulkQueueScreen(
                                 Text("Process")
                             }
                         }
-                        Button(onClick = onNavigateToCapture) {
+                        Button(
+                            onClick = {
+                                viewModel.prepareForBulkCapture()
+                                onNavigateToCapture()
+                            },
+                        ) {
                             Text("Scan")
                         }
                         if (hasUnprocessed) {

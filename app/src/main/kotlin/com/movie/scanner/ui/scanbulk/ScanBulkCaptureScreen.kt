@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +14,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EditLocation
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +68,10 @@ fun ScanBulkCaptureScreen(
         hasCameraPermission = granted
     }
 
-    BackHandler {
+    BackHandler(enabled = uiState.showLocationDialog) {
+        viewModel.dismissLocationDialog()
+    }
+    BackHandler(enabled = !uiState.showLocationDialog) {
         viewModel.finishScanning()
     }
 
@@ -122,10 +133,45 @@ fun ScanBulkCaptureScreen(
     }
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+    var locationDraft by remember { mutableStateOf("") }
     val headerLabel = if (uiState.captureMode == ScanCaptureMode.BARCODE) {
         "Barcode ${uiState.currentPairNumber}"
     } else {
         "Cover ${uiState.currentPairNumber}"
+    }
+
+    LaunchedEffect(uiState.showLocationDialog) {
+        if (uiState.showLocationDialog) {
+            locationDraft = uiState.bulkLocation
+        }
+    }
+
+    if (uiState.showLocationDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissLocationDialog,
+            title = { Text("Set Location") },
+            text = {
+                OutlinedTextField(
+                    value = locationDraft,
+                    onValueChange = { locationDraft = it },
+                    label = { Text("Location name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.saveBulkLocation(locationDraft) },
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissLocationDialog) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     Scaffold { innerPadding ->
@@ -174,13 +220,32 @@ fun ScanBulkCaptureScreen(
                             }
                         }
                     }
-                    Button(
-                        onClick = viewModel::finishScanning,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                        ),
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Done With Scanning")
+                        if (uiState.bulkLocation.isNotBlank()) {
+                            Text(
+                                text = uiState.bulkLocation,
+                                modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        IconButton(onClick = viewModel::openLocationDialog) {
+                            Icon(
+                                imageVector = Icons.Default.EditLocation,
+                                contentDescription = "Set Location",
+                            )
+                        }
+                        Button(
+                            onClick = viewModel::finishScanning,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                            ),
+                        ) {
+                            Text("Done")
+                        }
                     }
                 }
             }

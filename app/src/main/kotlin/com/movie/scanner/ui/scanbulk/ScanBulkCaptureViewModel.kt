@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.local.ApiKeyStore
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.data.repository.BulkImageRepository
+import com.movie.scanner.data.session.ScanSessionHolder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,15 +29,21 @@ data class ScanBulkCaptureUiState(
     val currentPairNumber: Int = 1,
     val statusMessage: String = "Take a photo of the barcode",
     val captureErrorMessage: String? = null,
+    val bulkLocation: String = "",
+    val showLocationDialog: Boolean = false,
 )
 
 @HiltViewModel
 class ScanBulkCaptureViewModel @Inject constructor(
     private val apiKeyStore: ApiKeyStore,
     private val bulkImageRepository: BulkImageRepository,
+    private val scanSessionHolder: ScanSessionHolder,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        ScanBulkCaptureUiState(isConfigured = apiKeyStore.hasMinimumConfiguration()),
+        ScanBulkCaptureUiState(
+            isConfigured = apiKeyStore.hasMinimumConfiguration(),
+            bulkLocation = scanSessionHolder.lastReviewLocation,
+        ),
     )
     val uiState: StateFlow<ScanBulkCaptureUiState> = _uiState.asStateFlow()
     private val navigationEvents = Channel<ScanBulkCaptureEvent>(Channel.BUFFERED)
@@ -59,7 +66,35 @@ class ScanBulkCaptureViewModel @Inject constructor(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             pairCount = _uiState.value.pairCount,
             currentPairNumber = _uiState.value.pairCount + 1,
+            bulkLocation = scanSessionHolder.lastReviewLocation,
         )
+    }
+
+    /**
+     * Opens the bulk location prompt with the current saved location as the draft default.
+     */
+    fun openLocationDialog() {
+        _uiState.update { it.copy(showLocationDialog = true) }
+    }
+
+    /**
+     * Closes the location prompt without persisting draft edits.
+     */
+    fun dismissLocationDialog() {
+        _uiState.update { it.copy(showLocationDialog = false) }
+    }
+
+    /**
+     * Saves the bulk location for later review forms and shows it on the capture header.
+     */
+    fun saveBulkLocation(location: String) {
+        scanSessionHolder.rememberReviewLocation(location)
+        _uiState.update {
+            it.copy(
+                bulkLocation = location,
+                showLocationDialog = false,
+            )
+        }
     }
 
     fun beginCaptureProcessing() {
