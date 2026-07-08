@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,10 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
@@ -48,6 +49,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -688,34 +690,25 @@ private val TmdbResultTableScrollbarWidth = 4.dp
 private val TmdbResultTableScrollbarMinThumbHeight = 24.dp
 
 /**
- * Draws a vertical scrollbar thumb on the trailing edge for a fixed-height [LazyListState] list.
+ * Draws a vertical scrollbar thumb on the trailing edge for a [ScrollState]-driven list.
  */
-private fun Modifier.drawLazyListVerticalScrollbar(
-    listState: LazyListState,
+private fun Modifier.drawVerticalScrollbar(
+    scrollState: ScrollState,
     thumbColor: Color,
     scrollbarWidth: Dp = TmdbResultTableScrollbarWidth,
 ): Modifier = drawWithContent {
     drawContent()
-    if (!listState.canScrollForward && !listState.canScrollBackward) {
-        return@drawWithContent
-    }
-
-    val layoutInfo = listState.layoutInfo
-    val visibleItems = layoutInfo.visibleItemsInfo
-    if (visibleItems.isEmpty()) {
+    if (scrollState.maxValue == 0) {
         return@drawWithContent
     }
 
     val scrollbarWidthPixels = scrollbarWidth.toPx()
     val viewportHeight = size.height
-    val averageItemHeight = visibleItems.map { item -> item.size }.average().toFloat()
-    val totalContentHeight = averageItemHeight * layoutInfo.totalItemsCount
-    val scrollOffset = listState.firstVisibleItemIndex * averageItemHeight +
-        listState.firstVisibleItemScrollOffset
-    val thumbHeight = (viewportHeight / totalContentHeight * viewportHeight)
+    val contentHeight = viewportHeight + scrollState.maxValue
+    val thumbHeight = (viewportHeight / contentHeight * viewportHeight)
         .coerceAtLeast(TmdbResultTableScrollbarMinThumbHeight.toPx())
     val scrollRange = viewportHeight - thumbHeight
-    val thumbOffset = scrollRange * scrollOffset / (totalContentHeight - viewportHeight)
+    val thumbOffset = scrollRange * scrollState.value / scrollState.maxValue
 
     drawRoundRect(
         color = thumbColor,
@@ -735,7 +728,7 @@ private fun TmdbResultsSelectionTable(
     onSelect: (TmdbSearchResult) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
     val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
     val tableBodyHeight = TmdbResultTableRowHeight * visibleRowCount
     val scrollEnabled = results.size > TmdbResultTableMaxVisibleRows
@@ -764,32 +757,38 @@ private fun TmdbResultsSelectionTable(
             Box(modifier = Modifier.width(40.dp))
         }
         HorizontalDivider()
-        LazyColumn(
-            state = listState,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(tableBodyHeight)
                 .then(
                     if (scrollEnabled) {
-                        Modifier.drawLazyListVerticalScrollbar(
-                            listState = listState,
+                        Modifier.drawVerticalScrollbar(
+                            scrollState = scrollState,
                             thumbColor = scrollbarThumbColor,
                         )
                     } else {
                         Modifier
                     },
-                )
-                .padding(end = if (scrollEnabled) 8.dp else 0.dp),
-            userScrollEnabled = scrollEnabled,
+                ),
         ) {
-            items(results, key = { result -> result.id }) { result ->
-                TmdbResultTableRow(
-                    result = result,
-                    selected = selectedResultId == result.id,
-                    onSelect = { onSelect(result) },
-                    onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                )
-                HorizontalDivider()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState, enabled = scrollEnabled)
+                    .padding(end = if (scrollEnabled) 8.dp else 0.dp),
+            ) {
+                results.forEach { result ->
+                    key(result.id) {
+                        TmdbResultTableRow(
+                            result = result,
+                            selected = selectedResultId == result.id,
+                            onSelect = { onSelect(result) },
+                            onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
             }
         }
     }
