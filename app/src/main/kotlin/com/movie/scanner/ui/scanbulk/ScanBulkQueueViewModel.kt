@@ -46,6 +46,7 @@ data class ScanBulkQueueRow(
 
 data class ScanBulkQueueUiState(
     val records: List<ScanBulkQueueRow> = emptyList(),
+    val isLoadingRecords: Boolean = true,
     val isProcessing: Boolean = false,
     val processingRecordId: Long? = null,
     val previewImagePath: String? = null,
@@ -79,7 +80,10 @@ class ScanBulkQueueViewModel @Inject constructor(
                 }
             }.collect { rows ->
                 _uiState.update { state ->
-                    state.copy(records = rows)
+                    state.copy(
+                        records = rows,
+                        isLoadingRecords = false,
+                    )
                 }
             }
         }

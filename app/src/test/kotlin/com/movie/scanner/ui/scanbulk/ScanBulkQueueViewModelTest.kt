@@ -25,6 +25,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -50,6 +52,24 @@ class ScanBulkQueueViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun init_clearsLoadingAfterFirstRecordsEmission() = runTest {
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+
+        assertTrue(viewModel.uiState.value.isLoadingRecords)
+
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoadingRecords)
+        assertTrue(viewModel.uiState.value.records.isEmpty())
     }
 
     @Test

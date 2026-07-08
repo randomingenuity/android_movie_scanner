@@ -67,6 +67,7 @@ fun ScanBulkQueueScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val hasDoneRecords = uiState.records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
+    val showInitialLoading = uiState.isLoadingRecords && uiState.records.isEmpty()
 
     BackHandler {
         viewModel.prepareForBulkCapture()
@@ -95,6 +96,26 @@ fun ScanBulkQueueScreen(
     }
 
     Scaffold { innerPadding ->
+        if (showInitialLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text = "Loading",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
