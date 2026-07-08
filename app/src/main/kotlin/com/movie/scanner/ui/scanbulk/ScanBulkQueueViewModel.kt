@@ -152,6 +152,18 @@ class ScanBulkQueueViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Deletes all processed queue rows and their image files from disk.
+     */
+    fun clearDoneRecords() {
+        if (_uiState.value.isProcessing) {
+            return
+        }
+        viewModelScope.launch {
+            bulkImageRepository.deleteProcessedRecords()
+        }
+    }
+
     private suspend fun processNextRecord() {
         if (!shouldContinueProcessing) {
             _uiState.update {

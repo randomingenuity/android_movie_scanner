@@ -63,6 +63,8 @@ fun ScanBulkQueueScreen(
     viewModel: ScanBulkQueueViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingRecords = uiState.records.filter { row -> !row.wasProcessed }
+    val doneRecords = uiState.records.filter { row -> row.wasProcessed }
 
     BackHandler {
         onNavigateToCapture()
@@ -102,7 +104,7 @@ fun ScanBulkQueueScreen(
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                items(uiState.records, key = { row -> row.id }) { row ->
+                items(pendingRecords, key = { row -> row.id }) { row ->
                     BulkQueueDataRow(
                         row = row,
                         onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
@@ -110,6 +112,29 @@ fun ScanBulkQueueScreen(
                         onDeleteClick = { viewModel.deleteRecord(row.id) },
                     )
                     HorizontalDivider()
+                }
+                items(doneRecords, key = { row -> row.id }) { row ->
+                    BulkQueueDataRow(
+                        row = row,
+                        onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
+                        onCoverClick = { viewModel.showImagePreview(row.coverRelFilepath) },
+                        onDeleteClick = { viewModel.deleteRecord(row.id) },
+                    )
+                    HorizontalDivider()
+                }
+                if (doneRecords.isNotEmpty() && !uiState.isProcessing) {
+                    item(key = "clear-done") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Button(onClick = viewModel::clearDoneRecords) {
+                                Text("Clear Done")
+                            }
+                        }
+                    }
                 }
             }
             Box(

@@ -35,4 +35,16 @@ interface BulkUnprocessedImageDao {
 
     @Query("DELETE FROM images_bulk_unprocessed WHERE id = :recordId")
     suspend fun deleteById(recordId: Long)
+
+    @Query(
+        """
+        SELECT * FROM images_bulk_unprocessed
+        WHERE was_processed = 1
+        ORDER BY id ASC
+        """,
+    )
+    suspend fun listProcessedOrderedById(): List<BulkUnprocessedImageEntity>
+
+    @Query("DELETE FROM images_bulk_unprocessed WHERE was_processed = 1")
+    suspend fun deleteAllProcessed()
 }

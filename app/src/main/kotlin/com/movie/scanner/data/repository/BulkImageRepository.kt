@@ -42,10 +42,20 @@ class BulkImageRepository @Inject constructor(
      */
     suspend fun deleteRecord(recordId: Long) = withContext(Dispatchers.IO) {
         val record = bulkUnprocessedImageDao.getById(recordId) ?: return@withContext
-        val workingDirectory = resolveWorkingDirectory()
-        File(workingDirectory, record.barcodeRelFilepath).delete()
-        File(workingDirectory, record.coverRelFilepath).delete()
+        deleteRecordFiles(record, resolveWorkingDirectory())
         bulkUnprocessedImageDao.deleteById(recordId)
+    }
+
+    /**
+     * Removes every processed queue row and deletes its barcode/cover image files from disk.
+     */
+    suspend fun deleteProcessedRecords() = withContext(Dispatchers.IO) {
+        val workingDirectory = resolveWorkingDirectory()
+        val processedRecords = bulkUnprocessedImageDao.listProcessedOrderedById()
+        for (record in processedRecords) {
+            deleteRecordFiles(record, workingDirectory)
+        }
+        bulkUnprocessedImageDao.deleteAllProcessed()
     }
 
     /**
@@ -129,5 +139,10 @@ class BulkImageRepository @Inject constructor(
         FileOutputStream(destinationFile).use { outputStream ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 92, outputStream)
         }
+    }
+
+    private fun deleteRecordFiles(record: BulkUnprocessedImageEntity, workingDirectory: File) {
+        File(workingDirectory, record.barcodeRelFilepath).delete()
+        File(workingDirectory, record.coverRelFilepath).delete()
     }
 }
