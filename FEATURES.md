@@ -7,7 +7,7 @@
 
 ## Scan Bulk
 
-- **Scan Bulk** tab: capture barcode and cover photos for many movies in sequence without stopping to identify each one.
+- **Scan Bulk** tab: opens the bulk queue when unprocessed pairs remain from an earlier session; otherwise opens bulk capture. Capture barcode and cover photos for many movies in sequence without stopping to identify each one.
 - Header shows **Barcode N** / **Cover N** for the current pair.
 - **Done With Scanning** (top right) is always available to open the bulk queue, including items from earlier sessions.
 - Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Processed? (checkmark or timer), delete (trash icon per row). Processed rows appear after pending rows; **Clear Done** below them removes all processed rows and their images.

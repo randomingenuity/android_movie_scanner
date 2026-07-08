@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -32,6 +33,9 @@ class BulkImageRepository @Inject constructor(
 
     suspend fun listUnprocessedRecords(): List<BulkUnprocessedImageEntity> =
         bulkUnprocessedImageDao.listUnprocessedOrderedById()
+
+    fun observeHasUnprocessedRecords(): Flow<Boolean> =
+        bulkUnprocessedImageDao.observeUnprocessedRecordCount().map { count -> count > 0 }
 
     suspend fun markProcessed(recordId: Long) {
         bulkUnprocessedImageDao.markProcessed(recordId)

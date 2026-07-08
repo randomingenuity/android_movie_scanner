@@ -24,6 +24,9 @@ interface BulkUnprocessedImageDao {
     )
     suspend fun listUnprocessedOrderedById(): List<BulkUnprocessedImageEntity>
 
+    @Query("SELECT COUNT(*) FROM images_bulk_unprocessed WHERE was_processed = 0")
+    fun observeUnprocessedRecordCount(): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(record: BulkUnprocessedImageEntity): Long
 

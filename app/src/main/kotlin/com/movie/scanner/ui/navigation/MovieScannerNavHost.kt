@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,10 +30,14 @@ import com.movie.scanner.ui.scanbulk.ScanBulkQueueScreen
 import com.movie.scanner.ui.settings.SettingsScreen
 
 @Composable
-fun MovieScannerNavHost() {
+fun MovieScannerNavHost(
+    scanBulkNavigationViewModel: ScanBulkNavigationViewModel = hiltViewModel(),
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val hasUnprocessedBulkRecords by scanBulkNavigationViewModel.hasUnprocessedRecords
+        .collectAsStateWithLifecycle()
     val bottomDestinations = listOf(
         AppDestination.Scan,
         AppDestination.ScanBulkCapture,
@@ -64,7 +70,15 @@ fun MovieScannerNavHost() {
                                 (destination == AppDestination.ScanBulkCapture &&
                                     currentRoute == AppDestination.ScanBulkQueue.route),
                             onClick = {
-                                navController.navigate(destination.route) {
+                                val route = if (
+                                    destination == AppDestination.ScanBulkCapture &&
+                                    hasUnprocessedBulkRecords
+                                ) {
+                                    AppDestination.ScanBulkQueue.route
+                                } else {
+                                    destination.route
+                                }
+                                navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
