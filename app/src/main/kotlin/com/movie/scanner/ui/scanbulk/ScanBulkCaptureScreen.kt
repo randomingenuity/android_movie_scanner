@@ -273,14 +273,14 @@ fun ScanBulkCaptureScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (!uiState.isRescanMode) {
-                            val bulkDiscTypeLabel = uiState.bulkDiscType
-                            if (bulkDiscTypeLabel.isNullOrBlank()) {
-                                TextButton(onClick = viewModel::openDiscTypeDialog) {
+                            val bulkBatchDiscTypeLabel = uiState.bulkBatchDiscType
+                            if (bulkBatchDiscTypeLabel.isNullOrBlank()) {
+                                Button(onClick = viewModel::openDiscTypeDialog) {
                                     Text("Disc Type")
                                 }
                             } else {
                                 Text(
-                                    text = bulkDiscTypeLabel,
+                                    text = bulkBatchDiscTypeLabel,
                                     modifier = Modifier.clickable(onClick = viewModel::openDiscTypeDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(

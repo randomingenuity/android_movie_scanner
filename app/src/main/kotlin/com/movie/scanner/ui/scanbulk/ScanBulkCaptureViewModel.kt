@@ -42,6 +42,7 @@ data class ScanBulkCaptureUiState(
     val bulkBatchLocation: String = "",
     val showLocationDialog: Boolean = false,
     val bulkDiscType: String? = null,
+    val bulkBatchDiscType: String? = null,
     val showDiscTypeDialog: Boolean = false,
     val isRescanMode: Boolean = false,
 )
@@ -59,6 +60,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
+            bulkBatchDiscType = scanSessionHolder.bulkBatchDiscType,
             bulkDiscType = resolveBulkCaptureDiscType(),
         ),
     )
@@ -98,6 +100,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
+            bulkBatchDiscType = scanSessionHolder.bulkBatchDiscType,
             bulkDiscType = resolveBulkCaptureDiscType(),
             isRescanMode = isRescanMode,
             statusMessage = if (isRescanMode) {
@@ -172,6 +175,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
         scanSessionHolder.rememberBulkBatchDiscType(discType)
         _uiState.update {
             it.copy(
+                bulkBatchDiscType = discType,
                 bulkDiscType = discType,
                 showDiscTypeDialog = false,
             )

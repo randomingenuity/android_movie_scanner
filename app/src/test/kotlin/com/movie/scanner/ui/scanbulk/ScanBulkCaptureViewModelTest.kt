@@ -130,6 +130,7 @@ class ScanBulkCaptureViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Blu-Ray", viewModel.uiState.value.bulkDiscType)
+        assertEquals("Blu-Ray", viewModel.uiState.value.bulkBatchDiscType)
         assertFalse(viewModel.uiState.value.showDiscTypeDialog)
         verify { scanSessionHolder.rememberBulkBatchDiscType("Blu-Ray") }
     }
@@ -143,7 +144,19 @@ class ScanBulkCaptureViewModelTest {
 
         assertFalse(viewModel.uiState.value.showDiscTypeDialog)
         assertEquals("DVD", viewModel.uiState.value.bulkDiscType)
+        assertEquals(null, viewModel.uiState.value.bulkBatchDiscType)
         verify(exactly = 0) { scanSessionHolder.rememberBulkBatchDiscType(any()) }
+    }
+
+    @Test
+    fun init_prefillsDiscTypeDraftWithoutMarkingBatchDiscTypeSet() = runTest {
+        every { scanSessionHolder.lastReviewDiscType } returns "DVD"
+        every { scanSessionHolder.bulkBatchDiscType } returns null
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+
+        assertEquals("DVD", viewModel.uiState.value.bulkDiscType)
+        assertEquals(null, viewModel.uiState.value.bulkBatchDiscType)
     }
 
     @Test
