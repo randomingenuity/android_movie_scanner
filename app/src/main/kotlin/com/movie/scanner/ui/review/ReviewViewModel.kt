@@ -13,6 +13,8 @@ import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.IntegerInput
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +55,18 @@ data class ReviewUiState(
     val finishedFromBulkProcessing: Boolean = false,
 )
 
+/**
+ * Editable review form values collected from the UI before submit or TMDB search.
+ */
+data class ReviewFormFields(
+    val title: String,
+    val year: String,
+    val barcode: String,
+    val location: String,
+    val seasonNumberInput: String,
+    val numberOfDiscsInput: String,
+)
+
 @HiltViewModel
 class ReviewViewModel @Inject constructor(
     private val scanSessionHolder: ScanSessionHolder,
@@ -63,6 +77,11 @@ class ReviewViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
     private var loadedExistingEntryKey: String? = null
+    private var refreshActionStateJob: Job? = null
+    private var titleUpdateJob: Job? = null
+    private var yearUpdateJob: Job? = null
+    private var seasonUpdateJob: Job? = null
+    private var barcodeUpdateJob: Job? = null
 
     init {
         val coverGuess = scanSessionHolder.coverGuess
@@ -102,7 +121,7 @@ class ReviewViewModel @Inject constructor(
                 bulkImageRepository.resolveAbsolutePath(relativePath)
             },
         )
-        viewModelScope.launch { refreshActionState() }
+        viewModelScope.launch { refreshActionStateNow() }
     }
 
     fun updateFeatureType(featureType: FeatureType) {
@@ -117,23 +136,83 @@ class ReviewViewModel @Inject constructor(
                 )
             }
         }
-        viewModelScope.launch { refreshActionState() }
+        viewModelScope.launch { refreshActionStateNow() }
     }
 
-    fun updateTitle(value: String) {
-        _uiState.update { it.copy(title = value, duplicateMessage = null, actionMessage = null) }
-        viewModelScope.launch { refreshActionState() }
+    fun scheduleTitleUpdate(value: String) {
+        titleUpdateJob?.cancel()
+        titleUpdateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            _uiState.update { it.copy(title = value, duplicateMessage = null, actionMessage = null) }
+            refreshActionStateNow()
+        }
     }
 
-    fun updateYear(value: String) {
-        _uiState.update { it.copy(year = value, duplicateMessage = null, actionMessage = null) }
-        viewModelScope.launch { refreshActionState() }
+    fun scheduleYearUpdate(value: String) {
+        yearUpdateJob?.cancel()
+        yearUpdateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            _uiState.update { it.copy(year = value, duplicateMessage = null, actionMessage = null) }
+            refreshActionStateNow()
+        }
     }
 
-    fun updateBarcode(value: String): String {
+    fun scheduleSeasonNumberUpdate(value: String) {
+        val filtered = IntegerInput.filterDigits(value)
+        seasonUpdateJob?.cancel()
+        seasonUpdateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            _uiState.update {
+                it.copy(
+                    seasonNumberInput = filtered,
+                    duplicateMessage = null,
+                    actionMessage = null,
+                )
+            }
+            refreshActionStateNow()
+        }
+    }
+
+    fun updateBarcode(value: String): String = removeNewlinesFromBarcode(value)
+
+    fun scheduleBarcodeUpdate(value: String) {
         val sanitized = removeNewlinesFromBarcode(value)
-        _uiState.update { it.copy(barcode = sanitized, duplicateMessage = null, actionMessage = null) }
-        return sanitized
+        barcodeUpdateJob?.cancel()
+        barcodeUpdateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            _uiState.update { it.copy(barcode = sanitized, duplicateMessage = null, actionMessage = null) }
+        }
+    }
+
+    fun commitBarcode(value: String) {
+        barcodeUpdateJob?.cancel()
+        _uiState.update {
+            it.copy(
+                barcode = removeNewlinesFromBarcode(value),
+                duplicateMessage = null,
+                actionMessage = null,
+            )
+        }
+    }
+
+    /**
+     * Applies the current form snapshot and cancels any in-flight debounced field updates.
+     */
+    fun applyFormFields(formFields: ReviewFormFields) {
+        cancelPendingFieldUpdates()
+        _uiState.update {
+            it.copy(
+                title = formFields.title,
+                year = formFields.year,
+                barcode = removeNewlinesFromBarcode(formFields.barcode),
+                location = formFields.location,
+                seasonNumberInput = IntegerInput.filterDigits(formFields.seasonNumberInput),
+                numberOfDiscsInput = IntegerInput.filterDigits(formFields.numberOfDiscsInput),
+                duplicateMessage = null,
+                actionMessage = null,
+            )
+        }
+        scanSessionHolder.rememberReviewLocation(formFields.location)
     }
 
     fun updateDiscType(discType: String?) {
@@ -153,7 +232,7 @@ class ReviewViewModel @Inject constructor(
                 actionMessage = null,
             )
         }
-        viewModelScope.launch { refreshActionState() }
+        scheduleRefreshActionState()
     }
 
     fun updateNumberOfDiscsInput(value: String) {
@@ -175,7 +254,7 @@ class ReviewViewModel @Inject constructor(
                 actionMessage = null,
             )
         }
-        viewModelScope.launch { refreshActionState() }
+        viewModelScope.launch { refreshActionStateNow() }
     }
 
     fun selectTmdbResult(result: TmdbSearchResult) {
@@ -188,16 +267,18 @@ class ReviewViewModel @Inject constructor(
                 actionMessage = null,
             )
         }
-        viewModelScope.launch { refreshActionState() }
+        viewModelScope.launch { refreshActionStateNow() }
     }
 
-    fun searchTmdb() {
-        val title = _uiState.value.title.trim()
+    fun searchTmdb(formFields: ReviewFormFields) {
+        applyFormFields(formFields)
+        val title = formFields.title.trim()
         if (title.isEmpty()) {
             return
         }
-        val year = _uiState.value.year.trim().ifBlank { null }
+        val year = formFields.year.trim().ifBlank { null }
         viewModelScope.launch {
+            refreshActionStateNow()
             _uiState.update { it.copy(isSearching = true, searchError = null) }
             val result = tmdbRepository.searchMovies(title, year)
             _uiState.update {
@@ -216,16 +297,18 @@ class ReviewViewModel @Inject constructor(
                     )
                 }
             }
-            refreshActionState()
+            refreshActionStateNow()
         }
     }
 
-    fun addMovie() {
-        val state = _uiState.value
-        val selected = state.selectedTmdbResult ?: return
-        val capturedBarcode = resolveCapturedBarcode(state)
-        val details = buildReviewItemDetails(state) ?: return
+    fun addMovie(formFields: ReviewFormFields) {
+        applyFormFields(formFields)
         viewModelScope.launch {
+            refreshActionStateNow()
+            val state = _uiState.value
+            val selected = state.selectedTmdbResult ?: return@launch
+            val capturedBarcode = resolveCapturedBarcode(state)
+            val details = buildReviewItemDetails(state) ?: return@launch
             val result = movieRepository.addMatchedMovie(
                 title = state.title.trim(),
                 year = state.year.trim(),
@@ -243,11 +326,13 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
-    fun forceAddMovie() {
-        val state = _uiState.value
-        val capturedBarcode = resolveCapturedBarcode(state)
-        val details = buildReviewItemDetails(state) ?: return
+    fun forceAddMovie(formFields: ReviewFormFields) {
+        applyFormFields(formFields)
         viewModelScope.launch {
+            refreshActionStateNow()
+            val state = _uiState.value
+            val capturedBarcode = resolveCapturedBarcode(state)
+            val details = buildReviewItemDetails(state) ?: return@launch
             val result = movieRepository.addForceMovie(
                 title = state.title.trim(),
                 year = state.year.trim(),
@@ -302,7 +387,7 @@ class ReviewViewModel @Inject constructor(
     fun confirmDiscard() {
         viewModelScope.launch {
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
-            completeBulkItemIfNeeded()
+            advanceBulkQueueWithoutProcessing()
             scanSessionHolder.finishScan()
             _uiState.update {
                 it.copy(
@@ -318,7 +403,7 @@ class ReviewViewModel @Inject constructor(
     fun skipMovie() {
         viewModelScope.launch {
             val finishedFromBulkProcessing = scanSessionHolder.isBulkProcessing
-            completeBulkItemIfNeeded()
+            advanceBulkQueueWithoutProcessing()
             scanSessionHolder.finishScan()
             _uiState.update {
                 it.copy(
@@ -345,6 +430,20 @@ class ReviewViewModel @Inject constructor(
                     finishedFromBulkProcessing = finishedFromBulkProcessing,
                 )
             }
+        }
+    }
+
+    /**
+     * Leaves the current bulk queue item unprocessed and resumes the queue when appropriate.
+     */
+    private suspend fun advanceBulkQueueWithoutProcessing() {
+        if (!scanSessionHolder.isBulkProcessing) {
+            return
+        }
+        val shouldResumeQueue = !scanSessionHolder.bulkProcessingStopRequested
+        scanSessionHolder.finishBulkItem()
+        if (shouldResumeQueue) {
+            scanSessionHolder.signalBulkQueueResume()
         }
     }
 
@@ -440,6 +539,26 @@ class ReviewViewModel @Inject constructor(
             usedForYear -> "Barcode was used to find the year."
             else -> "Barcode was not used to find the title or year."
         }
+    }
+
+    private fun cancelPendingFieldUpdates() {
+        refreshActionStateJob?.cancel()
+        titleUpdateJob?.cancel()
+        yearUpdateJob?.cancel()
+        seasonUpdateJob?.cancel()
+        barcodeUpdateJob?.cancel()
+    }
+
+    private fun scheduleRefreshActionState() {
+        refreshActionStateJob?.cancel()
+        refreshActionStateJob = viewModelScope.launch {
+            delay(FORM_FIELD_DEBOUNCE_MS)
+            refreshActionStateNow()
+        }
+    }
+
+    private suspend fun refreshActionStateNow() {
+        refreshActionState()
     }
 
     private suspend fun refreshActionState() {
@@ -569,5 +688,9 @@ class ReviewViewModel @Inject constructor(
                 numberOfDiscsInput = "",
             )
         }
+    }
+
+    private companion object {
+        const val FORM_FIELD_DEBOUNCE_MS = 300L
     }
 }

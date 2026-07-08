@@ -4,8 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -63,7 +61,7 @@ import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.util.BarcodeDecoder
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
     onFinished: (isBulkProcessing: Boolean) -> Unit,
@@ -73,6 +71,36 @@ fun ReviewScreen(
     val barcodeFocusRequester = remember { FocusRequester() }
     var barcodeFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var barcodeFieldReady by remember { mutableStateOf(false) }
+    var titleInput by remember { mutableStateOf(uiState.title) }
+    var yearInput by remember { mutableStateOf(uiState.year) }
+    var locationInput by remember { mutableStateOf(uiState.location) }
+    var seasonInput by remember { mutableStateOf(uiState.seasonNumberInput) }
+    var discsInput by remember { mutableStateOf(uiState.numberOfDiscsInput) }
+    LaunchedEffect(uiState.title) {
+        if (titleInput != uiState.title) {
+            titleInput = uiState.title
+        }
+    }
+    LaunchedEffect(uiState.year) {
+        if (yearInput != uiState.year) {
+            yearInput = uiState.year
+        }
+    }
+    LaunchedEffect(uiState.location) {
+        if (locationInput != uiState.location) {
+            locationInput = uiState.location
+        }
+    }
+    LaunchedEffect(uiState.seasonNumberInput) {
+        if (seasonInput != uiState.seasonNumberInput) {
+            seasonInput = uiState.seasonNumberInput
+        }
+    }
+    LaunchedEffect(uiState.numberOfDiscsInput) {
+        if (discsInput != uiState.numberOfDiscsInput) {
+            discsInput = uiState.numberOfDiscsInput
+        }
+    }
     LaunchedEffect(uiState.barcode) {
         val barcode = uiState.barcode
         if (!barcodeFieldReady) {
@@ -154,6 +182,14 @@ fun ReviewScreen(
         val barcodeLabel = remember(barcodeFieldValue.text) {
             BarcodeDecoder.buildBarcodeLabel(barcodeFieldValue.text)
         }
+        val formFields = ReviewFormFields(
+            title = titleInput,
+            year = yearInput,
+            barcode = barcodeFieldValue.text,
+            location = locationInput,
+            seasonNumberInput = seasonInput,
+            numberOfDiscsInput = discsInput,
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -164,10 +200,9 @@ fun ReviewScreen(
         ) {
             if (uiState.isBulkProcessing) {
                 item(key = "bulk_processing_actions") {
-                    FlowRow(
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (uiState.bulkCoverAbsolutePath != null) {
                             OutlinedButton(onClick = viewModel::showBulkCoverPreview) {
@@ -222,8 +257,11 @@ fun ReviewScreen(
             }
             item(key = "title_field") {
                 OutlinedTextField(
-                    value = uiState.title,
-                    onValueChange = viewModel::updateTitle,
+                    value = titleInput,
+                    onValueChange = {
+                        titleInput = it
+                        viewModel.scheduleTitleUpdate(it)
+                    },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -231,8 +269,11 @@ fun ReviewScreen(
             if (uiState.featureType == FeatureType.TV) {
                 item(key = "season_field") {
                     OutlinedTextField(
-                        value = uiState.seasonNumberInput,
-                        onValueChange = viewModel::updateSeasonNumberInput,
+                        value = seasonInput,
+                        onValueChange = {
+                            seasonInput = it
+                            viewModel.scheduleSeasonNumberUpdate(it)
+                        },
                         label = { Text("Season") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -246,8 +287,11 @@ fun ReviewScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     OutlinedTextField(
-                        value = uiState.year,
-                        onValueChange = viewModel::updateYear,
+                        value = yearInput,
+                        onValueChange = {
+                            yearInput = it
+                            viewModel.scheduleYearUpdate(it)
+                        },
                         label = { Text("Year") },
                         modifier = Modifier.weight(0.35f),
                     )
@@ -266,6 +310,7 @@ fun ReviewScreen(
                                     ),
                                 )
                             }
+                            viewModel.scheduleBarcodeUpdate(sanitized)
                         },
                         label = { Text(barcodeLabel) },
                         modifier = Modifier
@@ -325,8 +370,8 @@ fun ReviewScreen(
             }
             item(key = "number_of_discs_field") {
                 OutlinedTextField(
-                    value = uiState.numberOfDiscsInput,
-                    onValueChange = viewModel::updateNumberOfDiscsInput,
+                    value = discsInput,
+                    onValueChange = { discsInput = it },
                     label = { Text("Number of Discs") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -334,35 +379,19 @@ fun ReviewScreen(
                 )
             }
             item(key = "action_buttons") {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(onClick = viewModel::searchTmdb) {
-                        Text("Re-search TMDB")
-                    }
-                    Button(
-                        onClick = viewModel::addMovie,
-                        enabled = uiState.isAddEnabled,
-                    ) {
-                        Text(if (uiState.showReplaceAdd) "Replace" else "Add")
-                    }
-                    OutlinedButton(onClick = viewModel::skipMovie) {
-                        Text("Skip")
-                    }
-                    if (uiState.showForceAdd) {
-                        OutlinedButton(
-                            onClick = viewModel::forceAddMovie,
-                            enabled = uiState.isForceAddEnabled,
-                        ) {
-                            Text(if (uiState.showForceReplace) "Force Replace" else "Force Add")
-                        }
-                    }
-                    if (uiState.isSearching) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterVertically))
-                    }
-                }
+                ReviewActionButtons(
+                    formFields = formFields,
+                    isAddEnabled = uiState.isAddEnabled,
+                    showReplaceAdd = uiState.showReplaceAdd,
+                    showForceAdd = uiState.showForceAdd,
+                    showForceReplace = uiState.showForceReplace,
+                    isForceAddEnabled = uiState.isForceAddEnabled,
+                    isSearching = uiState.isSearching,
+                    onSearchTmdb = viewModel::searchTmdb,
+                    onAddMovie = viewModel::addMovie,
+                    onSkipMovie = viewModel::skipMovie,
+                    onForceAddMovie = viewModel::forceAddMovie,
+                )
             }
             uiState.searchError?.let { error ->
                 item(key = "search_error") {
@@ -384,12 +413,68 @@ fun ReviewScreen(
             }
             item(key = "location_field") {
                 OutlinedTextField(
-                    value = uiState.location,
-                    onValueChange = viewModel::updateLocation,
+                    value = locationInput,
+                    onValueChange = {
+                        locationInput = it
+                        viewModel.updateLocation(it)
+                    },
                     label = { Text("Location") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Primary review actions laid out in fixed rows to avoid FlowRow measurement cost while scrolling.
+ */
+@Composable
+private fun ReviewActionButtons(
+    formFields: ReviewFormFields,
+    isAddEnabled: Boolean,
+    showReplaceAdd: Boolean,
+    showForceAdd: Boolean,
+    showForceReplace: Boolean,
+    isForceAddEnabled: Boolean,
+    isSearching: Boolean,
+    onSearchTmdb: (ReviewFormFields) -> Unit,
+    onAddMovie: (ReviewFormFields) -> Unit,
+    onSkipMovie: () -> Unit,
+    onForceAddMovie: (ReviewFormFields) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(onClick = { onSearchTmdb(formFields) }) {
+                Text("Re-search TMDB")
+            }
+            Button(
+                onClick = { onAddMovie(formFields) },
+                enabled = isAddEnabled,
+            ) {
+                Text(if (showReplaceAdd) "Replace" else "Add")
+            }
+            OutlinedButton(onClick = onSkipMovie) {
+                Text("Skip")
+            }
+            if (isSearching) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+        }
+        if (showForceAdd) {
+            OutlinedButton(
+                onClick = { onForceAddMovie(formFields) },
+                enabled = isForceAddEnabled,
+            ) {
+                Text(if (showForceReplace) "Force Replace" else "Force Add")
             }
         }
     }

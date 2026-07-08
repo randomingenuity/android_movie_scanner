@@ -9,6 +9,7 @@ import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.ScanSessionHolder
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -87,6 +89,7 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         val sanitized = viewModel.updateBarcode("9781234567890\r\n")
+        viewModel.commitBarcode(sanitized)
 
         assertEquals("9781234567890", sanitized)
         assertEquals("9781234567890", viewModel.uiState.value.barcode)
@@ -260,4 +263,61 @@ class ReviewViewModelTest {
             viewModel.uiState.value.duplicateMessage,
         )
     }
+
+    @Test
+    fun skipMovie_duringBulkProcessing_doesNotMarkProcessedAndResumesQueue() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.currentBulkRecordId } returns 42L
+        every { scanSessionHolder.bulkProcessingStopRequested } returns false
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        viewModel.skipMovie()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { bulkImageRepository.markProcessed(any()) }
+        io.mockk.verify { scanSessionHolder.finishBulkItem() }
+        io.mockk.verify { scanSessionHolder.signalBulkQueueResume() }
+        io.mockk.verify { scanSessionHolder.finishScan() }
+        assertTrue(viewModel.uiState.value.finished)
+        assertTrue(viewModel.uiState.value.finishedFromBulkProcessing)
+    }
+
+    @Test
+    fun confirmDiscard_duringBulkProcessing_doesNotMarkProcessedAndResumesQueue() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.currentBulkRecordId } returns 42L
+        every { scanSessionHolder.bulkProcessingStopRequested } returns false
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        viewModel.confirmDiscard()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { bulkImageRepository.markProcessed(any()) }
+        io.mockk.verify { scanSessionHolder.finishBulkItem() }
+        io.mockk.verify { scanSessionHolder.signalBulkQueueResume() }
+        io.mockk.verify { scanSessionHolder.finishScan() }
+        assertTrue(viewModel.uiState.value.finished)
+        assertTrue(viewModel.uiState.value.finishedFromBulkProcessing)
+    }
+
+    @Test
+    fun skipMovie_outsideBulkProcessing_doesNotTouchBulkRepository() = runTest {
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        advanceUntilIdle()
+
+        viewModel.skipMovie()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { bulkImageRepository.markProcessed(any()) }
+        io.mockk.verify(exactly = 0) { scanSessionHolder.finishBulkItem() }
+        io.mockk.verify(exactly = 0) { scanSessionHolder.signalBulkQueueResume() }
+        io.mockk.verify { scanSessionHolder.finishScan() }
+        assertTrue(viewModel.uiState.value.finished)
+        assertEquals(false, viewModel.uiState.value.finishedFromBulkProcessing)
+    }
+
 }

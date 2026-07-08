@@ -11,7 +11,7 @@
 - Header shows **Barcode N** / **Cover N** for the current pair.
 - **Done With Scanning** (top right) is always available to open the bulk queue, including items from earlier sessions.
 - Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Processed? (checkmark or timer), delete (trash icon per row).
-- **Process** runs each unprocessed pair through the same identify → review → add flow as single Scan.
+- **Process** runs each unprocessed pair through the same identify → review → add flow as single Scan; **Scan** (to its right) returns to bulk capture to add more pairs.
 - During processing, a spinner shows the current item number; Review adds **Show Cover** and **Stop Processing** (closes review without saving and halts the queue).
 
 ## List
