@@ -241,9 +241,9 @@ fun ScanBulkCaptureScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (!uiState.isRescanMode) {
-                            if (uiState.bulkLocation.isNotBlank()) {
+                            if (uiState.bulkBatchLocation.isNotBlank()) {
                                 Text(
-                                    text = uiState.bulkLocation,
+                                    text = uiState.bulkBatchLocation,
                                     modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(

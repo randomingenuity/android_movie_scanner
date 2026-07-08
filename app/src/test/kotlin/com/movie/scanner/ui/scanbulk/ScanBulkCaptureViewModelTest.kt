@@ -113,6 +113,7 @@ class ScanBulkCaptureViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
+        assertEquals("Shelf A", viewModel.uiState.value.bulkBatchLocation)
         assertFalse(viewModel.uiState.value.showLocationDialog)
         verify { scanSessionHolder.rememberBulkBatchLocation("Shelf A") }
     }
@@ -195,6 +196,17 @@ class ScanBulkCaptureViewModelTest {
     }
 
     @Test
+    fun init_prefillsLocationDraftWithoutMarkingBatchLocationSet() = runTest {
+        every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
+        every { scanSessionHolder.bulkBatchLocation } returns ""
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+
+        assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
+        assertEquals("", viewModel.uiState.value.bulkBatchLocation)
+    }
+
+    @Test
     fun dismissLocationDialog_closesWithoutSaving() = runTest {
         every { scanSessionHolder.lastReviewLocation } returns "Shelf A"
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
@@ -203,6 +215,7 @@ class ScanBulkCaptureViewModelTest {
 
         assertFalse(viewModel.uiState.value.showLocationDialog)
         assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
+        assertEquals("", viewModel.uiState.value.bulkBatchLocation)
         verify(exactly = 0) { scanSessionHolder.rememberReviewLocation(any()) }
     }
 }
