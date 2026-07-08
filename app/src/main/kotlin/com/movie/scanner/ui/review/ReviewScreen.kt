@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
@@ -46,13 +49,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalUriHandler
@@ -62,6 +71,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -404,30 +414,21 @@ fun ReviewScreen(
                 }
             }
             if (uiState.tmdbResults.size > 1) {
-                item(key = "tmdb_results_label") {
-                    Text(
-                        text = "Confirm movie selection:",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                item(key = "tmdb_results_header") {
-                    TmdbResultTableHeaderRow()
-                }
-                item(key = "tmdb_results_header_divider") {
-                    HorizontalDivider()
-                }
-                items(
-                    items = uiState.tmdbResults,
-                    key = { result -> result.id },
-                ) { result ->
-                    val uriHandler = LocalUriHandler.current
-                    TmdbResultTableRow(
-                        result = result,
-                        selected = uiState.selectedTmdbResult?.id == result.id,
-                        onSelect = { viewModel.selectTmdbResult(result) },
-                        onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                    )
-                    HorizontalDivider()
+                item(key = "tmdb_results") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Confirm movie selection:",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        TmdbResultsSelectionTable(
+                            results = uiState.tmdbResults,
+                            selectedResultId = uiState.selectedTmdbResult?.id,
+                            onSelect = viewModel::selectTmdbResult,
+                        )
+                    }
                 }
             }
             item(key = "disc_type_field") {
@@ -684,6 +685,112 @@ private fun ReviewDiscTypeField(
 }
 
 private val TmdbResultTableRowHeight = 36.dp
+private val TmdbResultTableDividerHeight = 1.dp
+private val TmdbResultTableEntryHeight = TmdbResultTableRowHeight + TmdbResultTableDividerHeight
+private const val TmdbResultTableMaxVisibleRows = 3
+private val TmdbResultTableScrollbarWidth = 4.dp
+private val TmdbResultTableScrollbarMinThumbHeight = 24.dp
+
+/**
+ * Draws a vertical scrollbar thumb on the trailing edge of the TMDB pick table body.
+ */
+private fun Modifier.drawTmdbTableVerticalScrollbar(
+    scrollState: ScrollState,
+    thumbColor: Color,
+    totalContentHeight: Dp,
+    scrollbarWidth: Dp = TmdbResultTableScrollbarWidth,
+): Modifier = drawWithContent {
+    drawContent()
+
+    val viewportHeight = size.height
+    val totalContentHeightPixels = totalContentHeight.toPx()
+    val maxScroll = maxOf(
+        scrollState.maxValue.toFloat(),
+        totalContentHeightPixels - viewportHeight,
+    )
+    val scrollbarWidthPixels = scrollbarWidth.toPx()
+
+    if (maxScroll <= 0f) {
+        drawRoundRect(
+            color = thumbColor,
+            topLeft = Offset(size.width - scrollbarWidthPixels, 0f),
+            size = Size(scrollbarWidthPixels, viewportHeight),
+            cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
+        )
+        return@drawWithContent
+    }
+
+    val scrollOffset = scrollState.value.toFloat().coerceIn(0f, maxScroll)
+    val contentHeight = viewportHeight + maxScroll
+    val thumbHeight = (viewportHeight / contentHeight * viewportHeight)
+        .coerceAtLeast(TmdbResultTableScrollbarMinThumbHeight.toPx())
+    val scrollRange = (viewportHeight - thumbHeight).coerceAtLeast(0f)
+    val thumbOffset = if (scrollRange > 0f) {
+        scrollRange * scrollOffset / maxScroll
+    } else {
+        0f
+    }
+
+    drawRoundRect(
+        color = thumbColor,
+        topLeft = Offset(size.width - scrollbarWidthPixels, thumbOffset),
+        size = Size(scrollbarWidthPixels, thumbHeight),
+        cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
+    )
+}
+
+/**
+ * Compact TMDB pick list: Name and Year columns, Open icon per row, scroll when more than three results.
+ */
+@Composable
+private fun TmdbResultsSelectionTable(
+    results: List<TmdbSearchResult>,
+    selectedResultId: Int?,
+    onSelect: (TmdbSearchResult) -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val scrollState = rememberScrollState()
+    val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
+    val tableBodyHeight = TmdbResultTableEntryHeight * visibleRowCount
+    val scrollEnabled = results.size > TmdbResultTableMaxVisibleRows
+    val totalContentHeight = TmdbResultTableEntryHeight * results.size
+    val scrollbarThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+    scrollState.value
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TmdbResultTableHeaderRow()
+        HorizontalDivider()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(tableBodyHeight)
+                .drawTmdbTableVerticalScrollbar(
+                    scrollState = scrollState,
+                    thumbColor = scrollbarThumbColor,
+                    totalContentHeight = totalContentHeight,
+                ),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState, enabled = scrollEnabled)
+                    .padding(end = 8.dp),
+            ) {
+                results.forEach { result ->
+                    key(result.id) {
+                        TmdbResultTableRow(
+                            result = result,
+                            selected = selectedResultId == result.id,
+                            onSelect = { onSelect(result) },
+                            onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * Column headers for the TMDB result pick table (Name, Year, Open).
