@@ -255,7 +255,7 @@ fun ReviewScreen(
                 numberOfDiscsInput = uiState.numberOfDiscsInput,
             )
         }
-        val showTmdbRefresh = remember(
+        val titleYearChangedFromTmdbSearch = remember(
             titleInput,
             yearInput,
             uiState.tmdbSyncedTitle,
@@ -397,13 +397,12 @@ fun ReviewScreen(
                     )
                 }
             }
-            if (showTmdbRefresh) {
-                item(key = "tmdb_refresh") {
-                    ReviewTmdbRefreshButton(
-                        formFields = formFields,
-                        viewModel = viewModel,
-                    )
-                }
+            item(key = "tmdb_refresh") {
+                ReviewTmdbRefreshButton(
+                    formFields = formFields,
+                    titleYearChangedFromTmdbSearch = titleYearChangedFromTmdbSearch,
+                    viewModel = viewModel,
+                )
             }
             item(key = "barcode_llm_message") {
                 Text(
@@ -492,17 +491,21 @@ fun ReviewScreen(
 }
 
 /**
- * Shown when Title or Year differ from the last TMDB search; re-runs search and updates the result list.
+ * Re-runs TMDB search when Title or Year changed, or when retrying after a search error.
  */
 @Composable
 private fun ReviewTmdbRefreshButton(
     formFields: ReviewFormFields,
+    titleYearChangedFromTmdbSearch: Boolean,
     viewModel: ReviewViewModel,
 ) {
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    val canRefreshTmdb = formFields.title.trim().isNotEmpty() &&
+        !actionState.isSearching &&
+        (titleYearChangedFromTmdbSearch || actionState.searchError != null)
     OutlinedButton(
         onClick = { viewModel.searchTmdb(formFields) },
-        enabled = !actionState.isSearching && formFields.title.trim().isNotEmpty(),
+        enabled = canRefreshTmdb,
     ) {
         if (actionState.isSearching) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp))
@@ -530,9 +533,6 @@ private fun ReviewActionButtons(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(onClick = { viewModel.searchTmdb(formFields) }) {
-                Text("Re-search TMDB")
-            }
             Button(
                 onClick = { viewModel.addMovie(formFields) },
                 enabled = actionState.isAddEnabled,
@@ -541,9 +541,6 @@ private fun ReviewActionButtons(
             }
             OutlinedButton(onClick = viewModel::skipMovie) {
                 Text("Skip")
-            }
-            if (actionState.isSearching) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
         if (actionState.showForceAdd) {
