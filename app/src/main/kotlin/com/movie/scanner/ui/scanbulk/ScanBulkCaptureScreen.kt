@@ -231,12 +231,13 @@ fun ScanBulkCaptureScreen(
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                        }
-                        IconButton(onClick = viewModel::openLocationDialog) {
-                            Icon(
-                                imageVector = Icons.Default.EditLocation,
-                                contentDescription = "Set Location",
-                            )
+                        } else {
+                            IconButton(onClick = viewModel::openLocationDialog) {
+                                Icon(
+                                    imageVector = Icons.Default.EditLocation,
+                                    contentDescription = "Set Location",
+                                )
+                            }
                         }
                         Button(
                             onClick = viewModel::finishScanning,
