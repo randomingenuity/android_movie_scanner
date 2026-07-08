@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.list
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -23,11 +25,14 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +55,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.util.CsvExporter
+import com.movie.scanner.util.ListLocationFilter
 import com.movie.scanner.util.MovieListFormatter
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
@@ -69,8 +75,9 @@ fun ListScreen(
     viewModel: ListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val movies = uiState.movies
-    val showInitialLoading = uiState.isLoadingMovies && movies.isEmpty()
+    val allMovies = uiState.allMovies
+    val displayedMovies = uiState.displayedMovies
+    val showInitialLoading = uiState.isLoadingMovies && allMovies.isEmpty()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
@@ -81,7 +88,7 @@ fun ListScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear list?") },
-            text = { Text("Remove all ${movies.size} movies from the list?") },
+            text = { Text("Remove all ${allMovies.size} movies from the list?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -155,36 +162,108 @@ fun ListScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (movies.isEmpty()) {
+            if (allMovies.isEmpty()) {
                 Text(
                     text = "No features yet. Click \"Scan\" to get started.",
                     modifier = Modifier.padding(24.dp),
                 )
             } else {
-                ListHeaderRow()
-                HorizontalDivider()
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(movies, key = { movie -> movie.id }) { movie ->
-                        ListMovieRow(
-                            movie = movie,
-                            onRowClick = { selectedMovie = movie },
-                            onOpenTmdb = {
-                                movie.tmdbUrl?.let { url -> uriHandler.openUri(url) }
-                            },
-                            onDelete = { viewModel.deleteMovie(movie.id) },
-                        )
-                        HorizontalDivider()
+                ListLocationFilterField(
+                    selectedDisplayLabel = ListLocationFilter.buildSelectedDisplayLabel(
+                        selectedFilterKey = uiState.selectedLocationFilter,
+                        options = uiState.locationFilterOptions,
+                    ),
+                    locationOptions = uiState.locationFilterOptions,
+                    onLocationSelected = viewModel::selectLocationFilter,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                if (displayedMovies.isEmpty()) {
+                    Text(
+                        text = "No movies at this location.",
+                        modifier = Modifier.padding(24.dp),
+                    )
+                } else {
+                    ListHeaderRow()
+                    HorizontalDivider()
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(displayedMovies, key = { movie -> movie.id }) { movie ->
+                            ListMovieRow(
+                                movie = movie,
+                                onRowClick = { selectedMovie = movie },
+                                onOpenTmdb = {
+                                    movie.tmdbUrl?.let { url -> uriHandler.openUri(url) }
+                                },
+                                onDelete = { viewModel.deleteMovie(movie.id) },
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
             Button(
                 onClick = { showClearDialog = true },
-                enabled = movies.isNotEmpty(),
+                enabled = allMovies.isNotEmpty(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
             ) {
                 Text("Clear list")
+            }
+        }
+    }
+}
+
+/**
+ * Read-only location dropdown at the top of the list screen.
+ */
+@Composable
+private fun ListLocationFilterField(
+    selectedDisplayLabel: String,
+    locationOptions: List<ListLocationFilter.Option>,
+    onLocationSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val menuInteractionSource = remember { MutableInteractionSource() }
+    val dismissMenu = { menuExpanded = false }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = selectedDisplayLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Location") },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = menuInteractionSource,
+                    indication = null,
+                    onClick = { menuExpanded = true },
+                ),
+        )
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = dismissMenu,
+        ) {
+            locationOptions.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.menuLabel) },
+                    onClick = {
+                        onLocationSelected(option.filterKey)
+                        dismissMenu()
+                    },
+                )
             }
         }
     }

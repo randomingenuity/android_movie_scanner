@@ -22,6 +22,7 @@
 ## List
 
 - Browse saved movies, export/share as CSV.
+- **Location** filter at the top defaults to **(All)**; other choices are each distinct saved location plus **UNLOCATED** for blank locations, with an item count suffix (e.g. `Shelf A (3)`).
 - Tap a row to open a detail overlay with saved catalog fields (e.g. **Season** only for TV, matching the review form); close with the corner icon, the bottom **Close** button, or a tap outside the overlay.
 
 ## Settings
