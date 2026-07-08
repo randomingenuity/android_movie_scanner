@@ -2,7 +2,9 @@ package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -510,6 +512,7 @@ private fun ReviewActionMessage(viewModel: ReviewViewModel) {
 
 /**
  * Disc type picker using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
+ * A full-size clickable overlay opens the dialog because OutlinedTextField consumes taps.
  */
 @Composable
 private fun ReviewDiscTypeField(
@@ -517,27 +520,41 @@ private fun ReviewDiscTypeField(
     onDiscTypeSelected: (String?) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    val fieldInteractionSource = remember { MutableInteractionSource() }
     val discTypeOptions = remember { listOf(null) + DiscType.options }
-    OutlinedTextField(
-        value = selectedDiscType.orEmpty(),
-        onValueChange = {},
-        readOnly = true,
-        label = { Text("Disc Type") },
-        placeholder = { Text("Optional") },
-        trailingIcon = {
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
-            )
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showDialog = true },
-    )
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selectedDiscType.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Disc Type") },
+            placeholder = { Text("Optional") },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = fieldInteractionSource,
+                    indication = null,
+                    onClick = { showDialog = true },
+                ),
+        )
+    }
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            confirmButton = {},
+            confirmButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancel")
+                }
+            },
             title = { Text("Disc Type") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
