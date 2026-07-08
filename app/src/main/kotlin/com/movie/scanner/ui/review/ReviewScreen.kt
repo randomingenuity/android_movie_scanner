@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -84,7 +87,6 @@ fun ReviewScreen(
     var yearInput by remember { mutableStateOf(uiState.year) }
     var locationInput by remember { mutableStateOf(uiState.location) }
     var seasonInput by remember { mutableStateOf(uiState.seasonNumberInput) }
-    var discsInput by remember { mutableStateOf(uiState.numberOfDiscsInput) }
 
     // Sync ViewModel-driven form values in one pass to avoid staggered recompositions.
     LaunchedEffect(
@@ -92,7 +94,6 @@ fun ReviewScreen(
         uiState.year,
         uiState.location,
         uiState.seasonNumberInput,
-        uiState.numberOfDiscsInput,
     ) {
         if (titleInput != uiState.title) {
             titleInput = uiState.title
@@ -106,9 +107,6 @@ fun ReviewScreen(
         if (seasonInput != uiState.seasonNumberInput) {
             seasonInput = uiState.seasonNumberInput
         }
-        if (discsInput != uiState.numberOfDiscsInput) {
-            discsInput = uiState.numberOfDiscsInput
-        }
     }
     LaunchedEffect(bulkReviewSessionKey) {
         if (bulkReviewSessionKey == 0) {
@@ -118,7 +116,6 @@ fun ReviewScreen(
         yearInput = uiState.year
         locationInput = uiState.location
         seasonInput = uiState.seasonNumberInput
-        discsInput = uiState.numberOfDiscsInput
         val barcode = uiState.barcode
         barcodeFieldValue = if (barcode.isEmpty()) {
             TextFieldValue(text = "", selection = TextRange(0))
@@ -237,7 +234,7 @@ fun ReviewScreen(
             barcodeFieldValue.text,
             locationInput,
             seasonInput,
-            discsInput,
+            uiState.numberOfDiscsInput,
         ) {
             ReviewFormFields(
                 title = titleInput,
@@ -245,7 +242,7 @@ fun ReviewScreen(
                 barcode = barcodeFieldValue.text,
                 location = locationInput,
                 seasonNumberInput = seasonInput,
-                numberOfDiscsInput = discsInput,
+                numberOfDiscsInput = uiState.numberOfDiscsInput,
             )
         }
         LazyColumn(
@@ -424,13 +421,9 @@ fun ReviewScreen(
                 )
             }
             item(key = "number_of_discs_field") {
-                OutlinedTextField(
-                    value = discsInput,
-                    onValueChange = { discsInput = it },
-                    label = { Text("Number of Discs") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                ReviewNumberOfDiscsField(
+                    numberOfDiscs = uiState.numberOfDiscsInput,
+                    onNumberOfDiscsChange = viewModel::updateNumberOfDiscsInput,
                 )
             }
             item(key = "action_buttons") {
@@ -533,6 +526,54 @@ private fun ReviewActionMessage(viewModel: ReviewViewModel) {
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     actionState.actionMessage?.let { message ->
         Text(text = message, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/**
+ * Bounded stepper for disc count on the review form (1–10, default 1).
+ */
+@Composable
+private fun ReviewNumberOfDiscsField(
+    numberOfDiscs: Int,
+    onNumberOfDiscsChange: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Number of Discs",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            IconButton(
+                onClick = { onNumberOfDiscsChange(numberOfDiscs - 1) },
+                enabled = numberOfDiscs > ReviewViewModel.MIN_NUMBER_OF_DISCS,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease number of discs",
+                )
+            }
+            Text(
+                text = numberOfDiscs.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.widthIn(min = 24.dp),
+            )
+            IconButton(
+                onClick = { onNumberOfDiscsChange(numberOfDiscs + 1) },
+                enabled = numberOfDiscs < ReviewViewModel.MAX_NUMBER_OF_DISCS,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase number of discs",
+                )
+            }
+        }
     }
 }
 

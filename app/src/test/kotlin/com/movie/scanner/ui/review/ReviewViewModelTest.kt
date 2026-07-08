@@ -238,7 +238,7 @@ class ReviewViewModelTest {
         assertEquals("DVD", viewModel.uiState.value.discType)
         assertEquals("Shelf B", viewModel.uiState.value.location)
         assertEquals("2", viewModel.uiState.value.seasonNumberInput)
-        assertEquals("4", viewModel.uiState.value.numberOfDiscsInput)
+        assertEquals(4, viewModel.uiState.value.numberOfDiscsInput)
         assertEquals("9781234567890", viewModel.uiState.value.barcode)
     }
 

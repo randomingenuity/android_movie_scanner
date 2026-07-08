@@ -49,7 +49,7 @@ data class ReviewUiState(
     val discType: String? = null,
     val location: String = "",
     val seasonNumberInput: String = "",
-    val numberOfDiscsInput: String = "",
+    val numberOfDiscsInput: Int = ReviewViewModel.DEFAULT_NUMBER_OF_DISCS,
     val isBulkProcessing: Boolean = false,
     val bulkCoverAbsolutePath: String? = null,
     val showBulkCoverPreview: Boolean = false,
@@ -81,7 +81,7 @@ data class ReviewFormFields(
     val barcode: String,
     val location: String,
     val seasonNumberInput: String,
-    val numberOfDiscsInput: String,
+    val numberOfDiscsInput: Int,
 )
 
 @HiltViewModel
@@ -195,7 +195,7 @@ class ReviewViewModel @Inject constructor(
                 barcode = removeNewlinesFromBarcode(formFields.barcode),
                 location = formFields.location,
                 seasonNumberInput = IntegerInput.filterDigits(formFields.seasonNumberInput),
-                numberOfDiscsInput = IntegerInput.filterDigits(formFields.numberOfDiscsInput),
+                numberOfDiscsInput = clampNumberOfDiscs(formFields.numberOfDiscsInput),
             )
         }
         scanSessionHolder.rememberReviewLocation(formFields.location)
@@ -232,9 +232,9 @@ class ReviewViewModel @Inject constructor(
         scheduleRefreshActionState()
     }
 
-    fun updateNumberOfDiscsInput(value: String) {
+    fun updateNumberOfDiscsInput(value: Int) {
         _uiState.update {
-            it.copy(numberOfDiscsInput = IntegerInput.filterDigits(value))
+            it.copy(numberOfDiscsInput = clampNumberOfDiscs(value))
         }
         clearActionMessages()
     }
@@ -615,17 +615,12 @@ class ReviewViewModel @Inject constructor(
             _actionState.update { it.copy(actionMessage = "Season must be a whole number.") }
             return null
         }
-        val numberOfDiscs = IntegerInput.parseOptionalInt(state.numberOfDiscsInput)
-        if (state.numberOfDiscsInput.isNotBlank() && numberOfDiscs == null) {
-            _actionState.update { it.copy(actionMessage = "Number of Discs must be a whole number.") }
-            return null
-        }
         return ReviewItemDetails(
             featureType = state.featureType,
             discType = state.discType,
             location = state.location.trim().takeIf { location -> location.isNotBlank() },
             seasonNumber = seasonNumber,
-            numberOfDiscs = numberOfDiscs,
+            numberOfDiscs = clampNumberOfDiscs(state.numberOfDiscsInput),
         )
     }
 
@@ -864,7 +859,9 @@ class ReviewViewModel @Inject constructor(
                 discType = existingMovie.discType,
                 location = storedLocation.ifBlank { batchLocationFallback },
                 seasonNumberInput = existingMovie.seasonNumber?.toString().orEmpty(),
-                numberOfDiscsInput = existingMovie.numberOfDiscs?.toString().orEmpty(),
+                numberOfDiscsInput = clampNumberOfDiscs(
+                    existingMovie.numberOfDiscs ?: DEFAULT_NUMBER_OF_DISCS,
+                ),
                 barcode = it.barcode.takeIf { barcode -> barcode.isNotBlank() }
                     ?: removeNewlinesFromBarcode(existingMovie.upc.orEmpty()),
             )
@@ -881,12 +878,18 @@ class ReviewViewModel @Inject constructor(
                 featureType = scanSessionHolder.lastReviewFeatureType,
                 discType = null,
                 location = resolveDefaultReviewLocation(),
-                numberOfDiscsInput = "",
+                numberOfDiscsInput = DEFAULT_NUMBER_OF_DISCS,
             )
         }
     }
 
-    private companion object {
-        const val FORM_FIELD_DEBOUNCE_MS = 300L
+    private fun clampNumberOfDiscs(value: Int): Int =
+        value.coerceIn(MIN_NUMBER_OF_DISCS, MAX_NUMBER_OF_DISCS)
+
+    companion object {
+        const val MIN_NUMBER_OF_DISCS = 1
+        const val MAX_NUMBER_OF_DISCS = 10
+        const val DEFAULT_NUMBER_OF_DISCS = MIN_NUMBER_OF_DISCS
+        private const val FORM_FIELD_DEBOUNCE_MS = 300L
     }
 }
