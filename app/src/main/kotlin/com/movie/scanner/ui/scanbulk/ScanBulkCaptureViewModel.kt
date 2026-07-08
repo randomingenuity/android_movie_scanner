@@ -39,8 +39,9 @@ data class ScanBulkCaptureUiState(
     val statusMessage: String = "Take a photo of the barcode",
     val captureErrorMessage: String? = null,
     val bulkLocation: String = "",
-    val bulkBatchLocation: String = "",
     val showLocationDialog: Boolean = false,
+    val bulkDiscType: String? = null,
+    val showDiscTypeDialog: Boolean = false,
     val isRescanMode: Boolean = false,
 )
 
@@ -53,10 +54,10 @@ class ScanBulkCaptureViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
-            bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
+            bulkDiscType = resolveBulkCaptureDiscType(),
         ),
     )
     val uiState: StateFlow<ScanBulkCaptureUiState> = _uiState.asStateFlow()
@@ -91,10 +92,10 @@ class ScanBulkCaptureViewModel @Inject constructor(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
             pairCount = if (isRescanMode) 0 else _uiState.value.pairCount,
             currentPairNumber = if (isRescanMode) 1 else _uiState.value.pairCount + 1,
-            bulkBatchLocation = scanSessionHolder.bulkBatchLocation,
             bulkLocation = scanSessionHolder.bulkBatchLocation.ifBlank {
                 scanSessionHolder.lastReviewLocation
             },
+            bulkDiscType = resolveBulkCaptureDiscType(),
             isRescanMode = isRescanMode,
             statusMessage = if (isRescanMode) {
                 "Rescan the barcode"
@@ -140,9 +141,35 @@ class ScanBulkCaptureViewModel @Inject constructor(
         scanSessionHolder.rememberBulkBatchLocation(location)
         _uiState.update {
             it.copy(
-                bulkBatchLocation = location,
                 bulkLocation = location,
                 showLocationDialog = false,
+            )
+        }
+    }
+
+    /**
+     * Opens the bulk disc type picker.
+     */
+    fun openDiscTypeDialog() {
+        _uiState.update { it.copy(showDiscTypeDialog = true) }
+    }
+
+    /**
+     * Closes the disc type picker without persisting a selection.
+     */
+    fun dismissDiscTypeDialog() {
+        _uiState.update { it.copy(showDiscTypeDialog = false) }
+    }
+
+    /**
+     * Saves the bulk disc type for later review forms and shows it on the capture header.
+     */
+    fun saveBulkDiscType(discType: String?) {
+        scanSessionHolder.rememberBulkBatchDiscType(discType)
+        _uiState.update {
+            it.copy(
+                bulkDiscType = discType,
+                showDiscTypeDialog = false,
             )
         }
     }
@@ -379,5 +406,14 @@ class ScanBulkCaptureViewModel @Inject constructor(
         val createdScanner = BarcodeDecoder.buildBarcodeScanner()
         barcodeScanner = createdScanner
         return createdScanner
+    }
+
+    private fun resolveBulkCaptureDiscType(): String? {
+        val batchDiscType = scanSessionHolder.bulkBatchDiscType
+        if (!batchDiscType.isNullOrBlank()) {
+            return batchDiscType
+        }
+
+        return scanSessionHolder.lastReviewDiscType?.takeIf { discType -> discType.isNotBlank() }
     }
 }

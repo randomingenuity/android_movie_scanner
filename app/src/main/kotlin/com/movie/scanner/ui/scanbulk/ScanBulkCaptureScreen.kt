@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.ui.camera.CameraPreview
 import com.movie.scanner.ui.camera.CaptureProgressOverlay
@@ -67,10 +68,13 @@ fun ScanBulkCaptureScreen(
         hasCameraPermission = granted
     }
 
-    BackHandler(enabled = uiState.showLocationDialog) {
+    BackHandler(enabled = uiState.showDiscTypeDialog) {
+        viewModel.dismissDiscTypeDialog()
+    }
+    BackHandler(enabled = uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
         viewModel.dismissLocationDialog()
     }
-    BackHandler(enabled = !uiState.showLocationDialog) {
+    BackHandler(enabled = !uiState.showLocationDialog && !uiState.showDiscTypeDialog) {
         if (uiState.isRescanMode) {
             viewModel.cancelRescan()
         } else {
@@ -144,6 +148,7 @@ fun ScanBulkCaptureScreen(
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
     var locationDraft by remember { mutableStateOf("") }
+    val discTypeOptions = remember { listOf(null) + DiscType.options }
     val headerLabel = if (uiState.isRescanMode) {
         if (uiState.captureMode == ScanCaptureMode.BARCODE) {
             "Rescan Barcode"
@@ -160,6 +165,33 @@ fun ScanBulkCaptureScreen(
         if (uiState.showLocationDialog) {
             locationDraft = uiState.bulkLocation
         }
+    }
+
+    if (uiState.showDiscTypeDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissDiscTypeDialog,
+            title = { Text("Disc Type") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    discTypeOptions.forEach { discType ->
+                        TextButton(
+                            onClick = { viewModel.saveBulkDiscType(discType) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = discType ?: "None",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissDiscTypeDialog) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     if (uiState.showLocationDialog) {
@@ -241,9 +273,24 @@ fun ScanBulkCaptureScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (!uiState.isRescanMode) {
-                            if (uiState.bulkBatchLocation.isNotBlank()) {
+                            val bulkDiscTypeLabel = uiState.bulkDiscType
+                            if (bulkDiscTypeLabel.isNullOrBlank()) {
+                                TextButton(onClick = viewModel::openDiscTypeDialog) {
+                                    Text("Disc Type")
+                                }
+                            } else {
                                 Text(
-                                    text = uiState.bulkBatchLocation,
+                                    text = bulkDiscTypeLabel,
+                                    modifier = Modifier.clickable(onClick = viewModel::openDiscTypeDialog),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        textDecoration = TextDecoration.Underline,
+                                    ),
+                                )
+                            }
+                            if (uiState.bulkLocation.isNotBlank()) {
+                                Text(
+                                    text = uiState.bulkLocation,
                                     modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyMedium.copy(

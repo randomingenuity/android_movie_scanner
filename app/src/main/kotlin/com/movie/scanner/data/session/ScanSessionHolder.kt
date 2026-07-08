@@ -38,7 +38,11 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var lastReviewLocation: String = ""
         private set
+    var lastReviewDiscType: String? = null
+        private set
     var bulkBatchLocation: String = ""
+        private set
+    var bulkBatchDiscType: String? = null
         private set
     private var coverRetakeRequested: Boolean = false
     var isBulkProcessing: Boolean = false
@@ -116,12 +120,24 @@ class ScanSessionHolder @Inject constructor() {
         lastReviewLocation = location
     }
 
+    fun rememberReviewDiscType(discType: String?) {
+        lastReviewDiscType = discType
+    }
+
     /**
      * Saves the shelf or bin name for the current bulk capture batch and pre-fills review forms.
      */
     fun rememberBulkBatchLocation(location: String) {
         bulkBatchLocation = location
         lastReviewLocation = location
+    }
+
+    /**
+     * Saves the disc type for the current bulk capture batch and pre-fills review forms.
+     */
+    fun rememberBulkBatchDiscType(discType: String?) {
+        bulkBatchDiscType = discType
+        lastReviewDiscType = discType
     }
 
     fun startNewScan() {

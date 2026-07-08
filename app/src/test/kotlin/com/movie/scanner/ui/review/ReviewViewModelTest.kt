@@ -68,6 +68,8 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.MOVIE
         every { scanSessionHolder.lastReviewLocation } returns ""
         every { scanSessionHolder.bulkBatchLocation } returns ""
+        every { scanSessionHolder.lastReviewDiscType } returns null
+        every { scanSessionHolder.bulkBatchDiscType } returns null
         every { scanSessionHolder.isBulkProcessing } returns false
         every { scanSessionHolder.bulkCoverRelFilepath } returns null
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
@@ -146,6 +148,18 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun init_prefillsBulkBatchDiscTypeDuringBulkProcessing() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.lastReviewDiscType } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+    }
+
+    @Test
     fun refreshActionState_prefillsBulkBatchLocationWhenDuplicateHasNoLocation() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
@@ -171,6 +185,33 @@ class ReviewViewModelTest {
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
         assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+    }
+
+    @Test
+    fun refreshActionState_prefillsBulkBatchDiscTypeWhenDuplicateHasNoDiscType() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.bulkBatchDiscType } returns "DVD"
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = null,
+            location = "Shelf B",
+        )
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+        coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("DVD", viewModel.uiState.value.discType)
     }
 
     @Test
