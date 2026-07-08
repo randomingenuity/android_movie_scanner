@@ -43,6 +43,8 @@ data class ReviewUiState(
     val barcodeSuggestion: MovieGuess? = null,
     val tmdbResults: List<TmdbSearchResult> = emptyList(),
     val selectedTmdbResult: TmdbSearchResult? = null,
+    val tmdbSyncedTitle: String = "",
+    val tmdbSyncedYear: String = "",
     val showDiscardDialog: Boolean = false,
     val finished: Boolean = false,
     val addedTitle: String? = null,
@@ -252,11 +254,14 @@ class ReviewViewModel @Inject constructor(
     }
 
     fun selectTmdbResult(result: TmdbSearchResult) {
+        val syncedYear = result.year.ifBlank { _uiState.value.year }
         _uiState.update {
             it.copy(
                 selectedTmdbResult = result,
                 title = result.title,
-                year = result.year.ifBlank { it.year },
+                year = syncedYear,
+                tmdbSyncedTitle = result.title,
+                tmdbSyncedYear = syncedYear,
             )
         }
         clearActionMessages()
@@ -280,6 +285,8 @@ class ReviewViewModel @Inject constructor(
                     it.copy(
                         tmdbResults = results,
                         selectedTmdbResult = results.firstOrNull(),
+                        tmdbSyncedTitle = title,
+                        tmdbSyncedYear = year.orEmpty(),
                     )
                 } else {
                     it
@@ -595,6 +602,8 @@ class ReviewViewModel @Inject constructor(
             barcodeSuggestion = barcodeSuggestion,
             tmdbResults = initialResults,
             selectedTmdbResult = initialResults.firstOrNull(),
+            tmdbSyncedTitle = title,
+            tmdbSyncedYear = year,
             isBulkProcessing = isBulkProcessing,
             bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
                 bulkImageRepository.resolveAbsolutePath(relativePath)

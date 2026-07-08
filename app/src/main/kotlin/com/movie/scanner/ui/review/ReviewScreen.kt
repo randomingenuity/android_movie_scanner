@@ -255,6 +255,15 @@ fun ReviewScreen(
                 numberOfDiscsInput = uiState.numberOfDiscsInput,
             )
         }
+        val showTmdbRefresh = remember(
+            titleInput,
+            yearInput,
+            uiState.tmdbSyncedTitle,
+            uiState.tmdbSyncedYear,
+        ) {
+            titleInput.trim() != uiState.tmdbSyncedTitle.trim() ||
+                yearInput.trim() != uiState.tmdbSyncedYear.trim()
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -388,6 +397,14 @@ fun ReviewScreen(
                     )
                 }
             }
+            if (showTmdbRefresh) {
+                item(key = "tmdb_refresh") {
+                    ReviewTmdbRefreshButton(
+                        formFields = formFields,
+                        viewModel = viewModel,
+                    )
+                }
+            }
             item(key = "barcode_llm_message") {
                 Text(
                     text = uiState.barcodeLlmMessage,
@@ -470,6 +487,27 @@ fun ReviewScreen(
                     singleLine = true,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Shown when Title or Year differ from the last TMDB search; re-runs search and updates the result list.
+ */
+@Composable
+private fun ReviewTmdbRefreshButton(
+    formFields: ReviewFormFields,
+    viewModel: ReviewViewModel,
+) {
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    OutlinedButton(
+        onClick = { viewModel.searchTmdb(formFields) },
+        enabled = !actionState.isSearching && formFields.title.trim().isNotEmpty(),
+    ) {
+        if (actionState.isSearching) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        } else {
+            Text("Refresh")
         }
     }
 }

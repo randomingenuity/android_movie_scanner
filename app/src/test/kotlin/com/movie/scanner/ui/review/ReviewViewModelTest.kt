@@ -487,6 +487,91 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun init_setsTmdbSyncedTitleAndYearFromPrefilledValues() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Cover Title", viewModel.uiState.value.tmdbSyncedTitle)
+        assertEquals("2020", viewModel.uiState.value.tmdbSyncedYear)
+    }
+
+    @Test
+    fun scheduleTitleUpdate_leavesTmdbSyncedValuesUnchanged() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.scheduleTitleUpdate("Edited Title")
+        advanceUntilIdle()
+
+        assertEquals("Edited Title", viewModel.uiState.value.title)
+        assertEquals("Cover Title", viewModel.uiState.value.tmdbSyncedTitle)
+    }
+
+    @Test
+    fun searchTmdb_updatesTmdbSyncedTitleAndYear() = runTest {
+        coEvery { tmdbRepository.searchMovies("New Title", "2021") } returns Result.success(
+            listOf(
+                TmdbSearchResult(
+                    id = 99,
+                    title = "New Title",
+                    year = "2021",
+                    posterUrl = null,
+                    tmdbUrl = "https://www.themoviedb.org/movie/99",
+                ),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.searchTmdb(
+            ReviewFormFields(
+                title = "New Title",
+                year = "2021",
+                barcode = "9781234567890",
+                location = "",
+                seasonNumberInput = "",
+                numberOfDiscsInput = 1,
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("New Title", viewModel.uiState.value.tmdbSyncedTitle)
+        assertEquals("2021", viewModel.uiState.value.tmdbSyncedYear)
+        assertEquals(99, viewModel.uiState.value.selectedTmdbResult?.id)
+    }
+
+    @Test
+    fun selectTmdbResult_updatesTmdbSyncedTitleAndYear() = runTest {
+        every { scanSessionHolder.initialTmdbResults } returns listOf(
+            TmdbSearchResult(
+                id = 1,
+                title = "Cover Title",
+                year = "2020",
+                posterUrl = null,
+                tmdbUrl = "https://www.themoviedb.org/movie/1",
+            ),
+            TmdbSearchResult(
+                id = 2,
+                title = "Alternate Title",
+                year = "2019",
+                posterUrl = null,
+                tmdbUrl = "https://www.themoviedb.org/movie/2",
+            ),
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val alternateResult = viewModel.uiState.value.tmdbResults[1]
+        viewModel.selectTmdbResult(alternateResult)
+        advanceUntilIdle()
+
+        assertEquals("Alternate Title", viewModel.uiState.value.tmdbSyncedTitle)
+        assertEquals("2019", viewModel.uiState.value.tmdbSyncedYear)
+    }
+
+    @Test
     fun skipMovie_outsideBulkProcessing_doesNotTouchBulkRepository() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
