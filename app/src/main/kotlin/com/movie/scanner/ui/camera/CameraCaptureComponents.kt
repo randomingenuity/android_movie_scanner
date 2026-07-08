@@ -1,11 +1,14 @@
 package com.movie.scanner.ui.camera
 
 import android.graphics.Bitmap
+import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -36,6 +39,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.movie.scanner.util.ImageProxyBitmapConverter
 import java.util.concurrent.Executors
 
+private const val CAPTURE_TARGET_WIDTH = 1920
+private const val CAPTURE_TARGET_HEIGHT = 1080
+private const val CAPTURE_JPEG_QUALITY = 90
+
 /**
  * Full-screen camera preview with a registered still-capture callback.
  */
@@ -49,8 +56,19 @@ fun CameraPreview(
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context) }
     val imageCapture = remember {
+        val resolutionSelector = ResolutionSelector.Builder()
+            .setResolutionStrategy(
+                ResolutionStrategy(
+                    Size(CAPTURE_TARGET_WIDTH, CAPTURE_TARGET_HEIGHT),
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                ),
+            )
+            .build()
         ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setResolutionSelector(resolutionSelector)
+            .setOutputFormat(ImageCapture.OUTPUT_FORMAT_JPEG)
+            .setJpegQuality(CAPTURE_JPEG_QUALITY)
             .build()
     }
     val captureExecutor = remember { Executors.newSingleThreadExecutor() }
