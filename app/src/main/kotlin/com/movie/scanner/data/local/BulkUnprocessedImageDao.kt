@@ -33,6 +33,22 @@ interface BulkUnprocessedImageDao {
     @Query("UPDATE images_bulk_unprocessed SET was_processed = 1 WHERE id = :recordId")
     suspend fun markProcessed(recordId: Long)
 
+    @Query(
+        """
+        UPDATE images_bulk_unprocessed
+        SET barcode_rel_filepath = :barcodeRelFilepath,
+            cover_rel_filepath = :coverRelFilepath,
+            created_at_timestamp = :createdAtTimestamp
+        WHERE id = :recordId
+        """,
+    )
+    suspend fun updateImagePaths(
+        recordId: Long,
+        barcodeRelFilepath: String,
+        coverRelFilepath: String,
+        createdAtTimestamp: Long,
+    )
+
     @Query("SELECT * FROM images_bulk_unprocessed WHERE id = :recordId")
     suspend fun getById(recordId: Long): BulkUnprocessedImageEntity?
 

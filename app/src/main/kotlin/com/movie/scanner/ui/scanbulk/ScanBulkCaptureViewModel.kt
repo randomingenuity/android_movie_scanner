@@ -7,6 +7,8 @@ import com.movie.scanner.data.local.ApiKeyStore
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.session.ScanSessionHolder
+import com.movie.scanner.util.BarcodeDecoder
+import com.google.mlkit.vision.barcode.BarcodeScanner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +21,10 @@ import javax.inject.Inject
 
 sealed interface ScanBulkCaptureEvent {
     data object NavigateToQueue : ScanBulkCaptureEvent
+
+    data object NavigateToLoading : ScanBulkCaptureEvent
+
+    data object NavigateToReview : ScanBulkCaptureEvent
 }
 
 data class ScanBulkCaptureUiState(
@@ -31,6 +37,7 @@ data class ScanBulkCaptureUiState(
     val captureErrorMessage: String? = null,
     val bulkLocation: String = "",
     val showLocationDialog: Boolean = false,
+    val isRescanMode: Boolean = false,
 )
 
 @HiltViewModel
@@ -48,7 +55,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
     val uiState: StateFlow<ScanBulkCaptureUiState> = _uiState.asStateFlow()
     private val navigationEvents = Channel<ScanBulkCaptureEvent>(Channel.BUFFERED)
     val navigationEventFlow = navigationEvents.receiveAsFlow()
+    private var barcodeScanner: BarcodeScanner? = null
     private var pendingBarcodeBitmap: Bitmap? = null
+    private var rescanRecordId: Long? = null
+
+    override fun onCleared() {
+        barcodeScanner?.close()
+        barcodeScanner = null
+        super.onCleared()
+    }
 
     fun refreshConfiguration() {
         _uiState.update { it.copy(isConfigured = apiKeyStore.hasMinimumConfiguration()) }
@@ -62,12 +77,35 @@ class ScanBulkCaptureViewModel @Inject constructor(
             }
         }
         pendingBarcodeBitmap = null
+        rescanRecordId = scanSessionHolder.resolveBulkRescanRecordId()
+        val isRescanMode = rescanRecordId != null
         _uiState.value = ScanBulkCaptureUiState(
             isConfigured = apiKeyStore.hasMinimumConfiguration(),
-            pairCount = _uiState.value.pairCount,
-            currentPairNumber = _uiState.value.pairCount + 1,
+            pairCount = if (isRescanMode) 0 else _uiState.value.pairCount,
+            currentPairNumber = if (isRescanMode) 1 else _uiState.value.pairCount + 1,
             bulkLocation = scanSessionHolder.lastReviewLocation,
+            isRescanMode = isRescanMode,
+            statusMessage = if (isRescanMode) {
+                "Rescan the barcode"
+            } else {
+                "Take a photo of the barcode"
+            },
         )
+    }
+
+    /**
+     * Aborts an in-progress bulk rescan and returns to review without changing stored images.
+     */
+    fun cancelRescan() {
+        if (!_uiState.value.isRescanMode) {
+            finishScanning()
+            return
+        }
+        scanSessionHolder.clearBulkRescan()
+        rescanRecordId = null
+        viewModelScope.launch {
+            navigationEvents.send(ScanBulkCaptureEvent.NavigateToReview)
+        }
     }
 
     /**
@@ -137,10 +175,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
             }
         }
         pendingBarcodeBitmap = bitmap
+        val isRescanMode = _uiState.value.isRescanMode
         _uiState.update {
             it.copy(
                 captureMode = ScanCaptureMode.COVER,
-                statusMessage = "Capture the cover photo",
+                statusMessage = if (isRescanMode) {
+                    "Rescan the cover"
+                } else {
+                    "Capture the cover photo"
+                },
                 captureErrorMessage = null,
                 isProcessingCapture = false,
             )
@@ -157,13 +200,24 @@ class ScanBulkCaptureViewModel @Inject constructor(
                 it.copy(
                     captureErrorMessage = "Barcode photo is missing. Capture the barcode again.",
                     captureMode = ScanCaptureMode.BARCODE,
-                    statusMessage = "Take a photo of the barcode",
+                    statusMessage = if (it.isRescanMode) {
+                        "Rescan the barcode"
+                    } else {
+                        "Take a photo of the barcode"
+                    },
                     isProcessingCapture = false,
                 )
             }
             return
         }
         pendingBarcodeBitmap = null
+        if (_uiState.value.isRescanMode) {
+            completeRescanCapture(
+                barcodeBitmap = barcodeBitmap,
+                coverBitmap = bitmap,
+            )
+            return
+        }
         bulkImageRepository.enqueueCapturedPair(
             barcodeBitmap = barcodeBitmap,
             coverBitmap = bitmap,
@@ -199,5 +253,87 @@ class ScanBulkCaptureViewModel @Inject constructor(
         viewModelScope.launch {
             navigationEvents.send(ScanBulkCaptureEvent.NavigateToQueue)
         }
+    }
+
+    private fun completeRescanCapture(
+        barcodeBitmap: Bitmap,
+        coverBitmap: Bitmap,
+    ) {
+        val recordId = rescanRecordId
+        if (recordId == null) {
+            if (!barcodeBitmap.isRecycled) {
+                barcodeBitmap.recycle()
+            }
+            if (!coverBitmap.isRecycled) {
+                coverBitmap.recycle()
+            }
+            _uiState.update {
+                it.copy(
+                    captureErrorMessage = "Rescan session expired. Return to review and try again.",
+                    captureMode = ScanCaptureMode.BARCODE,
+                    statusMessage = "Rescan the barcode",
+                    isProcessingCapture = false,
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val updatedRecord = bulkImageRepository.replaceCapturedPair(
+                    recordId = recordId,
+                    barcodeBitmap = barcodeBitmap,
+                    coverBitmap = coverBitmap,
+                )
+                prepareRescanSession(
+                    recordId = recordId,
+                    barcodeRelativeFilepath = updatedRecord.barcodeRelFilepath,
+                    coverRelativeFilepath = updatedRecord.coverRelFilepath,
+                )
+                scanSessionHolder.clearBulkRescan()
+                rescanRecordId = null
+                navigationEvents.send(ScanBulkCaptureEvent.NavigateToLoading)
+            } catch (exception: Exception) {
+                onCaptureFailed(
+                    exception.message ?: "Could not save the rescanned images.",
+                )
+            }
+        }
+    }
+
+    private suspend fun prepareRescanSession(
+        recordId: Long,
+        barcodeRelativeFilepath: String,
+        coverRelativeFilepath: String,
+    ) {
+        val barcodeBitmap = bulkImageRepository.loadBitmap(barcodeRelativeFilepath)
+        val coverBitmap = bulkImageRepository.loadBitmap(coverRelativeFilepath)
+        if (barcodeBitmap == null || coverBitmap == null) {
+            throw IllegalStateException("Rescanned images could not be loaded.")
+        }
+        scanSessionHolder.startNewScan()
+        scanSessionHolder.startBulkItem(
+            recordId = recordId,
+            coverRelFilepath = coverRelativeFilepath,
+        )
+        val decodedBarcode = BarcodeDecoder.decodeFromBitmap(
+            bitmap = barcodeBitmap,
+            barcodeScanner = resolveBarcodeScanner(),
+        )
+        if (!decodedBarcode.isNullOrBlank()) {
+            scanSessionHolder.recordBarcodeCapture(decodedBarcode, barcodeBitmap)
+        } else {
+            scanSessionHolder.recordBarcodeCaptureForBulk(barcodeBitmap)
+        }
+        scanSessionHolder.recordCoverCapture(coverBitmap)
+    }
+
+    private fun resolveBarcodeScanner(): BarcodeScanner {
+        val existingScanner = barcodeScanner
+        if (existingScanner != null) {
+            return existingScanner
+        }
+        val createdScanner = BarcodeDecoder.buildBarcodeScanner()
+        barcodeScanner = createdScanner
+        return createdScanner
     }
 }

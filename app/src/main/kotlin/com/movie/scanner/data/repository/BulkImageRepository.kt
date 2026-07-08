@@ -90,6 +90,45 @@ class BulkImageRepository @Inject constructor(
     /**
      * Persists a barcode/cover pair under the app working directory and indexes the row.
      */
+    /**
+     * Replaces barcode/cover files for an existing bulk queue row and updates its index entry.
+     */
+    suspend fun replaceCapturedPair(
+        recordId: Long,
+        barcodeBitmap: Bitmap,
+        coverBitmap: Bitmap,
+    ): BulkUnprocessedImageEntity = withContext(Dispatchers.IO) {
+        val existingRecord = bulkUnprocessedImageDao.getById(recordId)
+            ?: throw IllegalArgumentException("Bulk record $recordId was not found.")
+        val workingDirectory = resolveWorkingDirectory()
+        deleteRecordFiles(existingRecord, workingDirectory)
+        val captureTimestamp = System.currentTimeMillis()
+        val barcodeRelativePath = "barcode_$captureTimestamp.jpg"
+        val coverRelativePath = "cover_$captureTimestamp.jpg"
+        writeBitmap(
+            destinationFile = File(workingDirectory, barcodeRelativePath),
+            bitmap = barcodeBitmap,
+        )
+        writeBitmap(
+            destinationFile = File(workingDirectory, coverRelativePath),
+            bitmap = coverBitmap,
+        )
+        bulkUnprocessedImageDao.updateImagePaths(
+            recordId = recordId,
+            barcodeRelFilepath = barcodeRelativePath,
+            coverRelFilepath = coverRelativePath,
+            createdAtTimestamp = captureTimestamp,
+        )
+        if (!barcodeBitmap.isRecycled) {
+            barcodeBitmap.recycle()
+        }
+        if (!coverBitmap.isRecycled) {
+            coverBitmap.recycle()
+        }
+        bulkUnprocessedImageDao.getById(recordId)
+            ?: throw IllegalStateException("Bulk record $recordId disappeared after rescan.")
+    }
+
     suspend fun saveCapturedPair(
         barcodeBitmap: Bitmap,
         coverBitmap: Bitmap,

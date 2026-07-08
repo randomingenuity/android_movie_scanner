@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -209,10 +210,10 @@ class ReviewViewModelTest {
         val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
-        assertEquals(true, viewModel.uiState.value.showReplaceAdd)
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
         assertEquals(
             "Already in list. Replace will replace the existing entry.",
-            viewModel.uiState.value.duplicateMessage,
+            viewModel.actionState.value.duplicateMessage,
         )
     }
 
@@ -224,9 +225,9 @@ class ReviewViewModelTest {
         val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
-        assertEquals(false, viewModel.uiState.value.showReplaceAdd)
-        assertEquals(null, viewModel.uiState.value.duplicateMessage)
-        assertEquals(false, viewModel.uiState.value.isAddEnabled)
+        assertEquals(false, viewModel.actionState.value.showReplaceAdd)
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
     }
 
     @Test
@@ -240,11 +241,11 @@ class ReviewViewModelTest {
         viewModel.updateSeasonNumberInput("2")
         advanceUntilIdle()
 
-        assertEquals(true, viewModel.uiState.value.showReplaceAdd)
-        assertEquals(true, viewModel.uiState.value.isAddEnabled)
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
+        assertEquals(true, viewModel.actionState.value.isAddEnabled)
         assertEquals(
             "Already in list. Replace will replace the existing entry.",
-            viewModel.uiState.value.duplicateMessage,
+            viewModel.actionState.value.duplicateMessage,
         )
     }
 
@@ -256,11 +257,11 @@ class ReviewViewModelTest {
         val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
         advanceUntilIdle()
 
-        assertEquals(true, viewModel.uiState.value.showForceAdd)
-        assertEquals(true, viewModel.uiState.value.showForceReplace)
+        assertEquals(true, viewModel.actionState.value.showForceAdd)
+        assertEquals(true, viewModel.actionState.value.showForceReplace)
         assertEquals(
             "Already in list. Force Replace will replace the existing entry.",
-            viewModel.uiState.value.duplicateMessage,
+            viewModel.actionState.value.duplicateMessage,
         )
     }
 
@@ -302,6 +303,28 @@ class ReviewViewModelTest {
         io.mockk.verify { scanSessionHolder.finishScan() }
         assertTrue(viewModel.uiState.value.finished)
         assertTrue(viewModel.uiState.value.finishedFromBulkProcessing)
+    }
+
+    @Test
+    fun requestBulkRescan_startsBulkRescanForCurrentRecord() = runTest {
+        every { scanSessionHolder.isBulkProcessing } returns true
+        every { scanSessionHolder.currentBulkRecordId } returns 42L
+
+        val viewModel = ReviewViewModel(scanSessionHolder, tmdbRepository, movieRepository, bulkImageRepository)
+        val navigationEvents = mutableListOf<ReviewNavigationEvent>()
+        val collectorJob = launch {
+            viewModel.navigationEventFlow.collect { event ->
+                navigationEvents.add(event)
+            }
+        }
+        advanceUntilIdle()
+
+        viewModel.requestBulkRescan()
+        advanceUntilIdle()
+
+        io.mockk.verify { scanSessionHolder.beginBulkRescan(42L) }
+        assertEquals(listOf(ReviewNavigationEvent.NavigateToBulkRescan), navigationEvents)
+        collectorJob.cancel()
     }
 
     @Test

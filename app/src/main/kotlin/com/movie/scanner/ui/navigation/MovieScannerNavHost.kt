@@ -109,7 +109,27 @@ fun MovieScannerNavHost(
             composable(AppDestination.ScanBulkCapture.route) {
                 ScanBulkCaptureScreen(
                     onNavigateToQueue = {
-                        navController.navigate(AppDestination.ScanBulkQueue.route)
+                        navController.navigate(AppDestination.ScanBulkQueue.route) {
+                            popUpTo(AppDestination.ScanBulkCapture.route) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToLoading = {
+                        navController.navigate(AppDestination.Loading.route) {
+                            popUpTo(AppDestination.ScanBulkCapture.route) {
+                                inclusive = true
+                            }
+                        }
+                    },
+                    onNavigateBackToReview = {
+                        navController.navigate(AppDestination.Review.route) {
+                            popUpTo(AppDestination.ScanBulkCapture.route) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
                     },
                 )
             }
@@ -166,6 +186,13 @@ fun MovieScannerNavHost(
                                     inclusive = true
                                 }
                                 launchSingleTop = true
+                            }
+                        }
+                    },
+                    onNavigateToBulkRescan = {
+                        navController.navigate(AppDestination.ScanBulkCapture.route) {
+                            popUpTo(AppDestination.Review.route) {
+                                inclusive = true
                             }
                         }
                     },

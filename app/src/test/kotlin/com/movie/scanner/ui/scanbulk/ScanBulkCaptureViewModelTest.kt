@@ -2,15 +2,21 @@ package com.movie.scanner.ui.scanbulk
 
 import android.graphics.Bitmap
 import com.movie.scanner.data.local.ApiKeyStore
+import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.session.ScanSessionHolder
+import com.movie.scanner.util.BarcodeDecoder
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -37,6 +43,7 @@ class ScanBulkCaptureViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { apiKeyStore.hasMinimumConfiguration() } returns true
         every { scanSessionHolder.lastReviewLocation } returns ""
+        every { scanSessionHolder.resolveBulkRescanRecordId() } returns null
         every { barcodeBitmap.isRecycled } returns false
         every { coverBitmap.isRecycled } returns false
     }
@@ -44,6 +51,7 @@ class ScanBulkCaptureViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkObject(BarcodeDecoder)
     }
 
     @Test
@@ -104,6 +112,62 @@ class ScanBulkCaptureViewModelTest {
         assertEquals("Shelf A", viewModel.uiState.value.bulkLocation)
         assertFalse(viewModel.uiState.value.showLocationDialog)
         verify { scanSessionHolder.rememberReviewLocation("Shelf A") }
+    }
+
+    @Test
+    fun prepareScreen_rescanMode_enablesRescanCaptureLabels() = runTest {
+        every { scanSessionHolder.resolveBulkRescanRecordId() } returns 42L
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+
+        assertTrue(viewModel.uiState.value.isRescanMode)
+        assertEquals("Rescan the barcode", viewModel.uiState.value.statusMessage)
+    }
+
+    @Test
+    fun processCapturedImage_rescanMode_replacesRecordAndNavigatesToLoading() = runTest {
+        mockkObject(BarcodeDecoder)
+        every { BarcodeDecoder.buildBarcodeScanner() } returns mockk(relaxed = true)
+        every { BarcodeDecoder.decodeFromBitmap(any(), any()) } returns "9781234567890"
+        every { scanSessionHolder.resolveBulkRescanRecordId() } returns 42L
+        coEvery {
+            bulkImageRepository.replaceCapturedPair(
+                recordId = 42L,
+                barcodeBitmap = barcodeBitmap,
+                coverBitmap = coverBitmap,
+            )
+        } returns BulkUnprocessedImageEntity(
+            id = 42L,
+            createdAtTimestamp = 1L,
+            barcodeRelFilepath = "barcode_new.jpg",
+            coverRelFilepath = "cover_new.jpg",
+        )
+        coEvery { bulkImageRepository.loadBitmap("barcode_new.jpg") } returns barcodeBitmap
+        coEvery { bulkImageRepository.loadBitmap("cover_new.jpg") } returns coverBitmap
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        val navigationEvents = mutableListOf<ScanBulkCaptureEvent>()
+        val collectorJob = launch {
+            viewModel.navigationEventFlow.collect { event ->
+                navigationEvents.add(event)
+            }
+        }
+        viewModel.prepareScreen()
+        viewModel.processCapturedImage(barcodeBitmap)
+        advanceUntilIdle()
+        viewModel.processCapturedImage(coverBitmap)
+        advanceUntilIdle()
+
+        assertEquals(listOf(ScanBulkCaptureEvent.NavigateToLoading), navigationEvents)
+        verify { scanSessionHolder.clearBulkRescan() }
+        verify {
+            scanSessionHolder.startBulkItem(
+                recordId = 42L,
+                coverRelFilepath = "cover_new.jpg",
+            )
+        }
+        collectorJob.cancel()
     }
 
     @Test

@@ -52,6 +52,8 @@ import com.movie.scanner.ui.camera.ShutterButton
 @Composable
 fun ScanBulkCaptureScreen(
     onNavigateToQueue: () -> Unit,
+    onNavigateToLoading: () -> Unit,
+    onNavigateBackToReview: () -> Unit,
     viewModel: ScanBulkCaptureViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -72,7 +74,11 @@ fun ScanBulkCaptureScreen(
         viewModel.dismissLocationDialog()
     }
     BackHandler(enabled = !uiState.showLocationDialog) {
-        viewModel.finishScanning()
+        if (uiState.isRescanMode) {
+            viewModel.cancelRescan()
+        } else {
+            viewModel.finishScanning()
+        }
     }
 
     DisposableEffect(Unit) {
@@ -93,8 +99,10 @@ fun ScanBulkCaptureScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.navigationEventFlow.collect { event ->
-            if (event is ScanBulkCaptureEvent.NavigateToQueue) {
-                onNavigateToQueue()
+            when (event) {
+                ScanBulkCaptureEvent.NavigateToQueue -> onNavigateToQueue()
+                ScanBulkCaptureEvent.NavigateToLoading -> onNavigateToLoading()
+                ScanBulkCaptureEvent.NavigateToReview -> onNavigateBackToReview()
             }
         }
     }
@@ -134,7 +142,13 @@ fun ScanBulkCaptureScreen(
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
     var locationDraft by remember { mutableStateOf("") }
-    val headerLabel = if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+    val headerLabel = if (uiState.isRescanMode) {
+        if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+            "Rescan Barcode"
+        } else {
+            "Rescan Cover"
+        }
+    } else if (uiState.captureMode == ScanCaptureMode.BARCODE) {
         "Barcode ${uiState.currentPairNumber}"
     } else {
         "Cover ${uiState.currentPairNumber}"
@@ -224,28 +238,29 @@ fun ScanBulkCaptureScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (uiState.bulkLocation.isNotBlank()) {
-                            Text(
-                                text = uiState.bulkLocation,
-                                modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        } else {
+                        if (!uiState.isRescanMode) {
+                            if (uiState.bulkLocation.isNotBlank()) {
+                                Text(
+                                    text = uiState.bulkLocation,
+                                    modifier = Modifier.clickable(onClick = viewModel::openLocationDialog),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                             IconButton(onClick = viewModel::openLocationDialog) {
                                 Icon(
                                     imageVector = Icons.Default.EditLocation,
                                     contentDescription = "Set Location",
                                 )
                             }
-                        }
-                        Button(
-                            onClick = viewModel::finishScanning,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                            ),
-                        ) {
-                            Text("Done")
+                            Button(
+                                onClick = viewModel::finishScanning,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) {
+                                Text("Done")
+                            }
                         }
                     }
                 }

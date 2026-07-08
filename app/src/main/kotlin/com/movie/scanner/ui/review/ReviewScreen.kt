@@ -64,6 +64,7 @@ import com.movie.scanner.util.BarcodeDecoder
 @Composable
 fun ReviewScreen(
     onFinished: (isBulkProcessing: Boolean) -> Unit,
+    onNavigateToBulkRescan: () -> Unit,
     viewModel: ReviewViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -135,6 +136,14 @@ fun ReviewScreen(
         }
     }
 
+    LaunchedEffect(viewModel) {
+        viewModel.navigationEventFlow.collect { event ->
+            if (event is ReviewNavigationEvent.NavigateToBulkRescan) {
+                onNavigateToBulkRescan()
+            }
+        }
+    }
+
     if (uiState.showBulkCoverPreview && uiState.bulkCoverAbsolutePath != null) {
         AlertDialog(
             onDismissRequest = viewModel::dismissBulkCoverPreview,
@@ -175,7 +184,22 @@ fun ReviewScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Review") })
+            TopAppBar(
+                title = { Text("Review") },
+                actions = {
+                    if (uiState.isBulkProcessing) {
+                        Button(
+                            onClick = viewModel::stopBulkProcessing,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                            ),
+                            modifier = Modifier.padding(end = 8.dp),
+                        ) {
+                            Text("Stop Processing")
+                        }
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         val barcodeLabel = remember(barcodeFieldValue.text) {
@@ -217,13 +241,8 @@ fun ReviewScreen(
                                 Text("Show Cover")
                             }
                         }
-                        Button(
-                            onClick = viewModel::stopBulkProcessing,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                            ),
-                        ) {
-                            Text("Stop Processing")
+                        OutlinedButton(onClick = viewModel::requestBulkRescan) {
+                            Text("Rescan")
                         }
                     }
                 }

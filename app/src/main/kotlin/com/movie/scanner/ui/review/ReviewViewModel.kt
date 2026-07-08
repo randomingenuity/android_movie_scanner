@@ -14,13 +14,19 @@ import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.IntegerInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+sealed interface ReviewNavigationEvent {
+    data object NavigateToBulkRescan : ReviewNavigationEvent
+}
 
 data class ReviewUiState(
     val featureType: FeatureType = FeatureType.MOVIE,
@@ -85,6 +91,8 @@ class ReviewViewModel @Inject constructor(
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
     private val _actionState = MutableStateFlow(ReviewActionState())
     val actionState: StateFlow<ReviewActionState> = _actionState.asStateFlow()
+    private val navigationEvents = Channel<ReviewNavigationEvent>(Channel.BUFFERED)
+    val navigationEventFlow = navigationEvents.receiveAsFlow()
     private var loadedExistingEntryKey: String? = null
     private var refreshActionStateJob: Job? = null
     private var titleUpdateJob: Job? = null
@@ -382,6 +390,17 @@ class ReviewViewModel @Inject constructor(
                     finishedFromBulkProcessing = true,
                 )
             }
+        }
+    }
+
+    /**
+     * Opens bulk capture to replace the current queue item's barcode and cover photos.
+     */
+    fun requestBulkRescan() {
+        val recordId = scanSessionHolder.currentBulkRecordId ?: return
+        viewModelScope.launch {
+            scanSessionHolder.beginBulkRescan(recordId)
+            navigationEvents.send(ReviewNavigationEvent.NavigateToBulkRescan)
         }
     }
 
