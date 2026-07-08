@@ -268,11 +268,11 @@ fun ScanBulkCaptureScreen(
                             }
                         }
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (!uiState.isRescanMode) {
+                    if (!uiState.isRescanMode) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
                             val bulkBatchDiscTypeLabel = uiState.bulkBatchDiscType
                             if (bulkBatchDiscTypeLabel.isNullOrBlank()) {
                                 Button(onClick = viewModel::openDiscTypeDialog) {
