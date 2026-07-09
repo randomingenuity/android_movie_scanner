@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,13 +43,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.movie.scanner.R
 import com.movie.scanner.ui.navigation.ScanBulkNavigationViewModel
 
-/** Fixed width for the status column so the header stays on one line. */
-private val BulkQueueStatusColumnWidth = 84.dp
+/** Trailing action icons: optional barcode, status, and delete. */
+private val BulkQueueIconSize = 24.dp
+private val BulkQueueIconSpacing = 8.dp
+private val BulkQueueTrailingWidth =
+    BulkQueueIconSize * 3 + BulkQueueIconSpacing * 2
 private val BulkQueueRowHorizontalPadding = 12.dp
 private val BulkQueueRowVerticalPadding = 4.dp
-private val BulkQueueDeleteColumnWidth = 36.dp
 
 private val BulkQueueProcessedCheckColor = Color(0xFF2E7D32)
 private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
@@ -272,65 +274,86 @@ private fun BulkQueueHeaderRow() {
         )
         Text(
             text = "Status",
-            modifier = Modifier.width(BulkQueueStatusColumnWidth),
+            modifier = Modifier.width(BulkQueueTrailingWidth),
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Clip,
         )
-        Box(modifier = Modifier.width(BulkQueueDeleteColumnWidth))
     }
 }
 
 /**
- * Shows queue status with checkmark, timer, or download icons; barcode-only matches add a scanner icon.
+ * Shows optional barcode, status, and delete icons with equal spacing between neighbors.
  */
 @Composable
-private fun BulkQueueStatusIcon(
+private fun BulkQueueTrailingIcons(
     status: BulkQueueItemStatus,
     showBarcodeResultIcon: Boolean,
+    onDeleteClick: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.width(BulkQueueStatusColumnWidth),
-        horizontalArrangement = Arrangement.End,
+        modifier = Modifier.width(BulkQueueTrailingWidth),
+        horizontalArrangement = Arrangement.spacedBy(BulkQueueIconSpacing, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showBarcodeResultIcon) {
             Icon(
-                imageVector = Icons.Default.QrCodeScanner,
+                painter = painterResource(R.drawable.barcode),
                 contentDescription = "Identified via barcode",
+                modifier = Modifier.size(BulkQueueIconSize),
                 tint = BulkQueueBarcodeResultColor,
             )
         }
-        when (status) {
-            BulkQueueItemStatus.PROCESSED -> {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Processed",
-                    tint = BulkQueueProcessedCheckColor,
-                )
-            }
-            BulkQueueItemStatus.RECOGNIZING -> {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = "Recognizing",
-                    tint = BulkQueueRecognizingDownloadColor,
-                )
-            }
-            BulkQueueItemStatus.READY -> {
-                Icon(
-                    imageVector = Icons.Default.Timer,
-                    contentDescription = "Ready for review",
-                    tint = BulkQueueReadyTimerColor,
-                )
-            }
-            BulkQueueItemStatus.PENDING -> {
-                Icon(
-                    imageVector = Icons.Default.Timer,
-                    contentDescription = "Pending recognition",
-                    tint = BulkQueuePendingTimerColor,
-                )
-            }
+        BulkQueueStatusIcon(status = status)
+        Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = "Delete",
+            modifier = Modifier
+                .size(BulkQueueIconSize)
+                .clickable(onClick = onDeleteClick),
+            tint = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+/**
+ * Shows the queue status as a checkmark, timer, or download icon.
+ */
+@Composable
+private fun BulkQueueStatusIcon(status: BulkQueueItemStatus) {
+    when (status) {
+        BulkQueueItemStatus.PROCESSED -> {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Processed",
+                modifier = Modifier.size(BulkQueueIconSize),
+                tint = BulkQueueProcessedCheckColor,
+            )
+        }
+        BulkQueueItemStatus.RECOGNIZING -> {
+            Icon(
+                imageVector = Icons.Default.Download,
+                contentDescription = "Recognizing",
+                modifier = Modifier.size(BulkQueueIconSize),
+                tint = BulkQueueRecognizingDownloadColor,
+            )
+        }
+        BulkQueueItemStatus.READY -> {
+            Icon(
+                imageVector = Icons.Default.Timer,
+                contentDescription = "Ready for review",
+                modifier = Modifier.size(BulkQueueIconSize),
+                tint = BulkQueueReadyTimerColor,
+            )
+        }
+        BulkQueueItemStatus.PENDING -> {
+            Icon(
+                imageVector = Icons.Default.Timer,
+                contentDescription = "Pending recognition",
+                modifier = Modifier.size(BulkQueueIconSize),
+                tint = BulkQueuePendingTimerColor,
+            )
         }
     }
 }
@@ -378,20 +401,11 @@ private fun BulkQueueDataRow(
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
         )
-        BulkQueueStatusIcon(
+        BulkQueueTrailingIcons(
             status = row.status,
             showBarcodeResultIcon = row.showBarcodeResultIcon,
+            onDeleteClick = onDeleteClick,
         )
-        IconButton(
-            onClick = onDeleteClick,
-            modifier = Modifier.size(BulkQueueDeleteColumnWidth),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete",
-                tint = MaterialTheme.colorScheme.error,
-            )
-        }
     }
 }
 
