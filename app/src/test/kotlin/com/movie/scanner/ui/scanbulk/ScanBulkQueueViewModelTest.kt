@@ -2,6 +2,8 @@ package com.movie.scanner.ui.scanbulk
 
 import com.movie.scanner.data.model.BulkProcessingResults
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
+import com.movie.scanner.data.model.MovieGuess
+import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
 import com.movie.scanner.data.session.BulkQueueSessionState
@@ -70,6 +72,46 @@ class ScanBulkQueueViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoadingRecords)
         assertTrue(viewModel.uiState.value.records.isEmpty())
+    }
+
+    @Test
+    fun init_mapsBarcodeOnlyRecognitionToQueueRowFlag() = runTest {
+        val barcodeOnlyResultsJson = BulkProcessingResultsJson.encode(
+            BulkProcessingResults(
+                barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+                tmdbResults = listOf(
+                    TmdbSearchResult(
+                        id = 42,
+                        title = "Arrival",
+                        year = "2016",
+                        posterUrl = null,
+                        tmdbUrl = "https://www.themoviedb.org/movie/42",
+                    ),
+                ),
+                capturedUpc = "9781234567890",
+            ),
+        )
+        val record = BulkUnprocessedImageEntity(
+            id = 1L,
+            createdAtTimestamp = 100L,
+            barcodeRelFilepath = "barcode_1.jpg",
+            coverRelFilepath = "cover_1.jpg",
+            processingResultsJson = barcodeOnlyResultsJson,
+        )
+        every { bulkImageRepository.observeAllRecords() } returns flowOf(listOf(record))
+
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+        advanceUntilIdle()
+
+        val row = viewModel.uiState.value.records.single()
+        assertTrue(row.showBarcodeResultIcon)
+        assertEquals(BulkQueueItemStatus.READY, row.status)
     }
 
     @Test

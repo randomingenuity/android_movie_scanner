@@ -42,6 +42,7 @@ data class ScanBulkQueueRow(
     val barcodeRelFilepath: String,
     val coverRelFilepath: String,
     val status: BulkQueueItemStatus,
+    val showBarcodeResultIcon: Boolean,
 )
 
 data class ScanBulkQueueUiState(
@@ -270,8 +271,16 @@ class ScanBulkQueueViewModel @Inject constructor(
     private fun buildQueueRow(
         record: BulkUnprocessedImageEntity,
         recognizingRecordIds: Set<Long>,
-    ): ScanBulkQueueRow =
-        ScanBulkQueueRow(
+    ): ScanBulkQueueRow {
+        val processingResultsJson = record.processingResultsJson
+        val showBarcodeResultIcon = if (processingResultsJson.isNullOrBlank()) {
+            false
+        } else {
+            BulkProcessingResultsJson.hasBarcodeResult(
+                BulkProcessingResultsJson.parse(processingResultsJson),
+            )
+        }
+        return ScanBulkQueueRow(
             id = record.id,
             timestampLabel = timestampFormatter.format(Date(record.createdAtTimestamp)),
             barcodeRelFilepath = record.barcodeRelFilepath,
@@ -280,7 +289,9 @@ class ScanBulkQueueViewModel @Inject constructor(
                 record = record,
                 recognizingRecordIds = recognizingRecordIds,
             ),
+            showBarcodeResultIcon = showBarcodeResultIcon,
         )
+    }
 
     private fun resolveItemStatus(
         record: BulkUnprocessedImageEntity,

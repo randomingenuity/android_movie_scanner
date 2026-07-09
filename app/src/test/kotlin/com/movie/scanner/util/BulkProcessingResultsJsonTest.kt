@@ -4,7 +4,9 @@ import com.movie.scanner.data.model.BulkProcessingResults
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BulkProcessingResultsJsonTest {
@@ -34,5 +36,43 @@ class BulkProcessingResultsJsonTest {
         assertEquals(1, parsed.tmdbResults.size)
         assertEquals(42, parsed.tmdbResults.first().id)
         assertNull(parsed.recognitionError)
+    }
+
+    @Test
+    fun hasBarcodeResult_trueWhenRecognitionCompletedFromBarcodeOnly() {
+        val results = BulkProcessingResults(
+            barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+            tmdbResults = listOf(
+                TmdbSearchResult(
+                    id = 42,
+                    title = "Arrival",
+                    year = "2016",
+                    posterUrl = null,
+                    tmdbUrl = "https://www.themoviedb.org/movie/42",
+                ),
+            ),
+            capturedUpc = "9781234567890",
+        )
+
+        assertTrue(BulkProcessingResultsJson.hasBarcodeResult(results))
+    }
+
+    @Test
+    fun hasBarcodeResult_falseWhenCoverGuessPresent() {
+        val results = BulkProcessingResults(
+            coverGuess = MovieGuess(title = "Arrival", year = "2016"),
+            barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+            tmdbResults = listOf(
+                TmdbSearchResult(
+                    id = 42,
+                    title = "Arrival",
+                    year = "2016",
+                    posterUrl = null,
+                    tmdbUrl = "https://www.themoviedb.org/movie/42",
+                ),
+            ),
+        )
+
+        assertFalse(BulkProcessingResultsJson.hasBarcodeResult(results))
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -55,6 +56,7 @@ private val BulkQueueProcessedCheckColor = Color(0xFF2E7D32)
 private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
 private val BulkQueueRecognizingDownloadColor = Color(0xFFEF6C00)
 private val BulkQueueReadyTimerColor = Color(0xFF2E7D32)
+private val BulkQueueBarcodeResultColor = Color(0xFF1565C0)
 
 /**
  * Lists bulk-captured image pairs and drives sequential review using pre-fetched recognition data.
@@ -281,14 +283,25 @@ private fun BulkQueueHeaderRow() {
 }
 
 /**
- * Shows queue status with checkmark, timer, or download icons.
+ * Shows queue status with checkmark, timer, or download icons; barcode-only matches add a scanner icon.
  */
 @Composable
-private fun BulkQueueStatusIcon(status: BulkQueueItemStatus) {
-    Box(
+private fun BulkQueueStatusIcon(
+    status: BulkQueueItemStatus,
+    showBarcodeResultIcon: Boolean,
+) {
+    Row(
         modifier = Modifier.width(BulkQueueStatusColumnWidth),
-        contentAlignment = Alignment.CenterEnd,
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (showBarcodeResultIcon) {
+            Icon(
+                imageVector = Icons.Default.QrCodeScanner,
+                contentDescription = "Identified via barcode",
+                tint = BulkQueueBarcodeResultColor,
+            )
+        }
         when (status) {
             BulkQueueItemStatus.PROCESSED -> {
                 Icon(
@@ -365,7 +378,10 @@ private fun BulkQueueDataRow(
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
         )
-        BulkQueueStatusIcon(status = row.status)
+        BulkQueueStatusIcon(
+            status = row.status,
+            showBarcodeResultIcon = row.showBarcodeResultIcon,
+        )
         IconButton(
             onClick = onDeleteClick,
             modifier = Modifier.size(BulkQueueDeleteColumnWidth),
