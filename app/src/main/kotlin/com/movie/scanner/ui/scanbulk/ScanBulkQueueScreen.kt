@@ -59,6 +59,7 @@ private val BulkQueuePendingTimerColor = Color(0xFFF9A825)
 private val BulkQueueRecognizingDownloadColor = Color(0xFFEF6C00)
 private val BulkQueueReadyTimerColor = Color(0xFF2E7D32)
 private val BulkQueueBarcodeResultColor = Color(0xFF1565C0)
+private val BulkQueueBarcodeRescanColor = Color(0xFF6A1B9A)
 
 /**
  * Lists bulk-captured image pairs and drives sequential review using pre-fetched recognition data.
@@ -116,6 +117,7 @@ fun ScanBulkQueueScreen(
             when (event) {
                 ScanBulkQueueEvent.NavigateToReview -> onNavigateToReview()
                 ScanBulkQueueEvent.NavigateToScan -> onNavigateToScan()
+                ScanBulkQueueEvent.NavigateToCapture -> onNavigateToCapture()
             }
         }
     }
@@ -180,6 +182,7 @@ fun ScanBulkQueueScreen(
                         row = row,
                         onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
                         onCoverClick = { viewModel.showImagePreview(row.coverRelFilepath) },
+                        onRescanClick = { viewModel.requestRescan(row.id) },
                         onDeleteClick = { viewModel.deleteRecord(row.id) },
                     )
                     HorizontalDivider()
@@ -284,12 +287,14 @@ private fun BulkQueueHeaderRow() {
 }
 
 /**
- * Shows optional barcode, status, and delete icons with equal spacing between neighbors.
+ * Shows optional barcode or rescan, status, and delete icons with equal spacing between neighbors.
  */
 @Composable
 private fun BulkQueueTrailingIcons(
     status: BulkQueueItemStatus,
     showBarcodeResultIcon: Boolean,
+    showBarcodeRescanIcon: Boolean,
+    onRescanClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     Row(
@@ -303,6 +308,15 @@ private fun BulkQueueTrailingIcons(
                 contentDescription = "Identified via barcode",
                 modifier = Modifier.size(BulkQueueIconSize),
                 tint = BulkQueueBarcodeResultColor,
+            )
+        } else if (showBarcodeRescanIcon) {
+            Icon(
+                painter = painterResource(R.drawable.restart_alt),
+                contentDescription = "Rescan barcode and cover",
+                modifier = Modifier
+                    .size(BulkQueueIconSize)
+                    .clickable(onClick = onRescanClick),
+                tint = BulkQueueBarcodeRescanColor,
             )
         }
         BulkQueueStatusIcon(status = status)
@@ -363,6 +377,7 @@ private fun BulkQueueDataRow(
     row: ScanBulkQueueRow,
     onBarcodeClick: () -> Unit,
     onCoverClick: () -> Unit,
+    onRescanClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     Row(
@@ -404,6 +419,8 @@ private fun BulkQueueDataRow(
         BulkQueueTrailingIcons(
             status = row.status,
             showBarcodeResultIcon = row.showBarcodeResultIcon,
+            showBarcodeRescanIcon = row.showBarcodeRescanIcon,
+            onRescanClick = onRescanClick,
             onDeleteClick = onDeleteClick,
         )
     }

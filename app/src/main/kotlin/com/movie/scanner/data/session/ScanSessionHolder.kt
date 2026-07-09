@@ -56,6 +56,7 @@ class ScanSessionHolder @Inject constructor() {
     var bulkProcessingStopRequested: Boolean = false
         private set
     private var bulkRescanRecordId: Long? = null
+    private var bulkRescanReturnToQueue: Boolean = false
     private var bulkQueueResumePending: Boolean = false
 
     fun signalBulkQueueResume() {
@@ -85,14 +86,18 @@ class ScanSessionHolder @Inject constructor() {
     /**
      * Marks the next bulk capture session as replacing images for an existing queue row.
      */
-    fun beginBulkRescan(recordId: Long) {
+    fun beginBulkRescan(recordId: Long, returnToQueue: Boolean = false) {
         bulkRescanRecordId = recordId
+        bulkRescanReturnToQueue = returnToQueue
     }
 
     fun resolveBulkRescanRecordId(): Long? = bulkRescanRecordId
 
+    fun shouldReturnToQueueAfterBulkRescan(): Boolean = bulkRescanReturnToQueue
+
     fun clearBulkRescan() {
         bulkRescanRecordId = null
+        bulkRescanReturnToQueue = false
     }
 
     fun finishBulkItem() {

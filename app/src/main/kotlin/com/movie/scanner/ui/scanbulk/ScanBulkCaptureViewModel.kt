@@ -107,10 +107,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
             finishScanning()
             return
         }
+        val returnToQueue = scanSessionHolder.shouldReturnToQueueAfterBulkRescan()
         scanSessionHolder.clearBulkRescan()
         rescanRecordId = null
         viewModelScope.launch {
-            navigationEvents.send(ScanBulkCaptureEvent.NavigateToReview)
+            if (returnToQueue) {
+                navigationEvents.send(ScanBulkCaptureEvent.NavigateToQueue)
+            } else {
+                navigationEvents.send(ScanBulkCaptureEvent.NavigateToReview)
+            }
         }
     }
 
@@ -302,6 +307,14 @@ class ScanBulkCaptureViewModel @Inject constructor(
                     barcodeBitmap = barcodeBitmap,
                     coverBitmap = coverBitmap,
                 )
+                val returnToQueue = scanSessionHolder.shouldReturnToQueueAfterBulkRescan()
+                if (returnToQueue) {
+                    scanSessionHolder.clearBulkRescan()
+                    rescanRecordId = null
+                    _uiState.update { it.copy(isProcessingCapture = false) }
+                    navigationEvents.send(ScanBulkCaptureEvent.NavigateToQueue)
+                    return@launch
+                }
                 prepareRescanSession(
                     recordId = recordId,
                     barcodeRelativeFilepath = updatedRecord.barcodeRelFilepath,

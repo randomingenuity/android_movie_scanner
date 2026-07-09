@@ -111,7 +111,80 @@ class ScanBulkQueueViewModelTest {
 
         val row = viewModel.uiState.value.records.single()
         assertTrue(row.showBarcodeResultIcon)
+        assertFalse(row.showBarcodeRescanIcon)
         assertEquals(BulkQueueItemStatus.READY, row.status)
+    }
+
+    @Test
+    fun init_mapsCoverRecognitionToRescanIconWhenBarcodeLookupDidNotFinish() = runTest {
+        val coverResultsJson = BulkProcessingResultsJson.encode(
+            BulkProcessingResults(
+                coverGuess = MovieGuess(title = "Arrival", year = "2016"),
+                barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+                tmdbResults = listOf(
+                    TmdbSearchResult(
+                        id = 42,
+                        title = "Arrival",
+                        year = "2016",
+                        posterUrl = null,
+                        tmdbUrl = "https://www.themoviedb.org/movie/42",
+                    ),
+                ),
+                capturedUpc = "9781234567890",
+            ),
+        )
+        val record = BulkUnprocessedImageEntity(
+            id = 1L,
+            createdAtTimestamp = 100L,
+            barcodeRelFilepath = "barcode_1.jpg",
+            coverRelFilepath = "cover_1.jpg",
+            processingResultsJson = coverResultsJson,
+        )
+        every { bulkImageRepository.observeAllRecords() } returns flowOf(listOf(record))
+
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+        advanceUntilIdle()
+
+        val row = viewModel.uiState.value.records.single()
+        assertFalse(row.showBarcodeResultIcon)
+        assertTrue(row.showBarcodeRescanIcon)
+    }
+
+    @Test
+    fun requestRescan_startsQueueRescanAndNavigatesToCapture() = runTest {
+        val viewModel = ScanBulkQueueViewModel(
+            bulkImageRepository = bulkImageRepository,
+            bulkRecognitionProcessor = bulkRecognitionProcessor,
+            scanSessionHolder = scanSessionHolder,
+            bulkQueueSessionState = bulkQueueSessionState,
+            bulkReviewPreloadService = bulkReviewPreloadService,
+        )
+        val navigationEvents = mutableListOf<ScanBulkQueueEvent>()
+        val collectorJob = launch {
+            viewModel.navigationEventFlow.collect { event ->
+                navigationEvents.add(event)
+            }
+        }
+        advanceUntilIdle()
+
+        viewModel.requestRescan(7L)
+        advanceUntilIdle()
+
+        assertEquals(listOf(ScanBulkQueueEvent.NavigateToCapture), navigationEvents)
+        verify {
+            scanSessionHolder.beginBulkRescan(
+                recordId = 7L,
+                returnToQueue = true,
+            )
+        }
+        io.mockk.verify { bulkReviewPreloadService.clearPreload() }
+        collectorJob.cancel()
     }
 
     @Test

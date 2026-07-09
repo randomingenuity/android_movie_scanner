@@ -27,6 +27,8 @@ sealed interface ScanBulkQueueEvent {
     data object NavigateToReview : ScanBulkQueueEvent
 
     data object NavigateToScan : ScanBulkQueueEvent
+
+    data object NavigateToCapture : ScanBulkQueueEvent
 }
 
 enum class BulkQueueItemStatus {
@@ -43,6 +45,7 @@ data class ScanBulkQueueRow(
     val coverRelFilepath: String,
     val status: BulkQueueItemStatus,
     val showBarcodeResultIcon: Boolean,
+    val showBarcodeRescanIcon: Boolean,
 )
 
 data class ScanBulkQueueUiState(
@@ -148,6 +151,20 @@ class ScanBulkQueueViewModel @Inject constructor(
 
     fun resolveAbsolutePath(relativeFilepath: String): String =
         bulkImageRepository.resolveAbsolutePath(relativeFilepath)
+
+    /**
+     * Opens bulk capture to replace a queue row's barcode and cover photos.
+     */
+    fun requestRescan(recordId: Long) {
+        bulkReviewPreloadService.clearPreload()
+        if (_uiState.value.processingRecordId == recordId) {
+            stopActiveProcessing()
+        }
+        scanSessionHolder.beginBulkRescan(recordId = recordId, returnToQueue = true)
+        viewModelScope.launch {
+            navigationEvents.send(ScanBulkQueueEvent.NavigateToCapture)
+        }
+    }
 
     /**
      * Deletes a queue row from storage and clears processing state when that row was active.
@@ -280,17 +297,38 @@ class ScanBulkQueueViewModel @Inject constructor(
                 BulkProcessingResultsJson.parse(processingResultsJson),
             )
         }
+        val status = resolveItemStatus(
+            record = record,
+            recognizingRecordIds = recognizingRecordIds,
+        )
+        val showBarcodeRescanIcon = shouldShowBarcodeRescanIcon(
+            showBarcodeResultIcon = showBarcodeResultIcon,
+            status = status,
+            processingResultsJson = processingResultsJson,
+        )
         return ScanBulkQueueRow(
             id = record.id,
             timestampLabel = timestampFormatter.format(Date(record.createdAtTimestamp)),
             barcodeRelFilepath = record.barcodeRelFilepath,
             coverRelFilepath = record.coverRelFilepath,
-            status = resolveItemStatus(
-                record = record,
-                recognizingRecordIds = recognizingRecordIds,
-            ),
+            status = status,
             showBarcodeResultIcon = showBarcodeResultIcon,
+            showBarcodeRescanIcon = showBarcodeRescanIcon,
         )
+    }
+
+    private fun shouldShowBarcodeRescanIcon(
+        showBarcodeResultIcon: Boolean,
+        status: BulkQueueItemStatus,
+        processingResultsJson: String?,
+    ): Boolean {
+        if (showBarcodeResultIcon) {
+            return false
+        }
+        if (status != BulkQueueItemStatus.READY) {
+            return false
+        }
+        return !processingResultsJson.isNullOrBlank()
     }
 
     private fun resolveItemStatus(

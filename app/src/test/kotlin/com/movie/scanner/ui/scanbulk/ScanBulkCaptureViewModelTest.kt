@@ -51,6 +51,7 @@ class ScanBulkCaptureViewModelTest {
         every { scanSessionHolder.bulkBatchLocation } returns ""
         every { scanSessionHolder.bulkDefaultsPromptHandled } returns false
         every { scanSessionHolder.resolveBulkRescanRecordId() } returns null
+        every { scanSessionHolder.shouldReturnToQueueAfterBulkRescan() } returns false
         every { barcodeBitmap.isRecycled } returns false
         every { coverBitmap.isRecycled } returns false
     }
@@ -173,6 +174,48 @@ class ScanBulkCaptureViewModelTest {
                 recordId = 42L,
                 coverRelFilepath = "cover_new.jpg",
             )
+        }
+        collectorJob.cancel()
+    }
+
+    @Test
+    fun processCapturedImage_queueRescan_replacesRecordAndNavigatesToQueue() = runBlocking {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        mockkObject(BarcodeDecoder)
+        every { BarcodeDecoder.buildBarcodeScanner() } returns mockk(relaxed = true)
+        every { scanSessionHolder.resolveBulkRescanRecordId() } returns 42L
+        every { scanSessionHolder.shouldReturnToQueueAfterBulkRescan() } returns true
+        coEvery {
+            bulkImageRepository.replaceCapturedPair(
+                recordId = 42L,
+                barcodeBitmap = barcodeBitmap,
+                coverBitmap = coverBitmap,
+            )
+        } returns BulkUnprocessedImageEntity(
+            id = 42L,
+            createdAtTimestamp = 1L,
+            barcodeRelFilepath = "barcode_new.jpg",
+            coverRelFilepath = "cover_new.jpg",
+        )
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        val navigationEvents = mutableListOf<ScanBulkCaptureEvent>()
+        val collectorJob = launch {
+            viewModel.navigationEventFlow.collect { event ->
+                navigationEvents.add(event)
+            }
+        }
+        viewModel.prepareScreen()
+        viewModel.processCapturedImage(barcodeBitmap)
+        viewModel.processCapturedImage(coverBitmap)
+        while (navigationEvents.isEmpty()) {
+            delay(10)
+        }
+
+        assertEquals(listOf(ScanBulkCaptureEvent.NavigateToQueue), navigationEvents)
+        verify { scanSessionHolder.clearBulkRescan() }
+        verify(exactly = 0) {
+            scanSessionHolder.startBulkItem(any(), any())
         }
         collectorJob.cancel()
     }
