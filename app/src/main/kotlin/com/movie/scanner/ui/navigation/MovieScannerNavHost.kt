@@ -159,7 +159,9 @@ fun MovieScannerNavHost(
                 ScanBulkQueueScreen(
                     scanBulkNavigationViewModel = scanBulkNavigationViewModel,
                     onNavigateToReview = {
-                        navController.navigate(AppDestination.Review.route)
+                        navController.navigate(AppDestination.Review.route) {
+                            launchSingleTop = true
+                        }
                     },
                     onNavigateToCapture = {
                         navController.navigate(AppDestination.ScanBulkCapture.route) {

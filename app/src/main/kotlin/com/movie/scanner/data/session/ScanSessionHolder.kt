@@ -4,6 +4,10 @@ import android.graphics.Bitmap
 import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,6 +36,8 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var initialTmdbResults: List<TmdbSearchResult> = emptyList()
         private set
+    private val _reviewPayloadGeneration = MutableStateFlow(0L)
+    val reviewPayloadGeneration: StateFlow<Long> = _reviewPayloadGeneration.asStateFlow()
     var lastAddedTitle: String? = null
         private set
     var lastReviewFeatureType: FeatureType = FeatureType.MOVIE
@@ -216,6 +222,7 @@ class ScanSessionHolder @Inject constructor() {
         coverGuess = coverGuessValue
         barcodeGuess = barcodeGuessValue
         initialTmdbResults = tmdbResults
+        _reviewPayloadGeneration.update { generation -> generation + 1L }
         if (!capturedUpcValue.isNullOrBlank()) {
             capturedUpc = capturedUpcValue
             upc = capturedUpcValue

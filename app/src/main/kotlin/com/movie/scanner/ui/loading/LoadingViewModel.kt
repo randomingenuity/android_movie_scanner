@@ -186,7 +186,25 @@ class LoadingViewModel @Inject constructor(
         scanSessionHolder.clearBitmaps()
         val title = coverGuess?.title?.takeIf { title -> title.isNotBlank() }
             ?: barcodeGuess?.title?.takeIf { title -> title.isNotBlank() }
+        val capturedUpc = scanSessionHolder.resolveCapturedUpc()
+        val coverTitle = coverGuess?.title?.trim().orEmpty()
         if (title.isNullOrBlank()) {
+            if (capturedUpc.isNullOrBlank() && coverTitle.isBlank()) {
+                scanSessionHolder.storeRecognitionResults(
+                    coverGuessValue = coverGuess,
+                    barcodeGuessValue = barcodeGuess,
+                    tmdbResults = emptyList(),
+                    capturedUpcValue = capturedUpc,
+                )
+                _uiState.update {
+                    it.copy(
+                        message = "Done",
+                        isComplete = true,
+                        isError = false,
+                    )
+                }
+                return
+            }
             showCoverFailure("Could not identify a movie title from the cover photo.")
             return
         }

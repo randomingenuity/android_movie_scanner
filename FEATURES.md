@@ -4,7 +4,7 @@
 
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
 - Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
-- Review shows **Open Matched** above Title when TMDB returned a single match; tap opens that title on TMDB in the default browser.
+- Review always shows **Parameters from** and **Matched** under the cover title; **Matched** shows the TMDB id (linked to TMDB in the default browser). When title and year are known but the match was not loaded yet, review searches TMDB automatically. When neither a barcode nor a cover title could be read from the photos, review shows a warning to enter the movie name and year and tap **Refresh**.
 - **Refresh** below **Title** / **Year** re-runs TMDB search when those fields change or to retry after a search error; it is disabled while results are already in sync.
 
 ## Scan Bulk

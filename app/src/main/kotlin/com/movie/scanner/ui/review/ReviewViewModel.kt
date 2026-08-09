@@ -31,15 +31,24 @@ sealed interface ReviewNavigationEvent {
     data object NavigateToBulkRescan : ReviewNavigationEvent
 }
 
+/**
+ * How title, year, and barcode were populated before any user edits on the review form.
+ */
+enum class ReviewAutomaticParameterSource {
+    BARCODE_LOOKUP,
+    COVER_IMAGE,
+}
+
 data class ReviewUiState(
     val featureType: FeatureType = FeatureType.MOVIE,
     val title: String = "",
     val year: String = "",
     val barcode: String = "",
     val extractedCoverTitle: String = "",
-    val barcodeUsedForTitle: Boolean = false,
-    val barcodeUsageMessage: String? = null,
-    val barcodeLlmMessage: String = "",
+    val recognizedTitle: String = "",
+    val recognizedYear: String = "",
+    val recognizedBarcode: String = "",
+    val automaticParameterSource: ReviewAutomaticParameterSource? = null,
     val barcodeSuggestion: MovieGuess? = null,
     val tmdbResults: List<TmdbSearchResult> = emptyList(),
     val selectedTmdbResult: TmdbSearchResult? = null,
@@ -56,6 +65,7 @@ data class ReviewUiState(
     val bulkCoverAbsolutePath: String? = null,
     val showBulkCoverPreview: Boolean = false,
     val finishedFromBulkProcessing: Boolean = false,
+    val requiresManualTitleEntry: Boolean = false,
 )
 
 /**
@@ -104,7 +114,10 @@ class ReviewViewModel @Inject constructor(
     val bulkReviewSessionKey: StateFlow<Int> = _bulkReviewSessionKey.asStateFlow()
     private val navigationEvents = Channel<ReviewNavigationEvent>(Channel.BUFFERED)
     val navigationEventFlow = navigationEvents.receiveAsFlow()
+    val reviewPayloadGeneration = scanSessionHolder.reviewPayloadGeneration
     private var loadedExistingEntryKey: String? = null
+    private var lastConsumedReviewPayloadGeneration: Long = -1L
+    private var initialTmdbSearchAttemptedForPayloadGeneration: Long = -1L
     private var refreshActionStateJob: Job? = null
     private var titleUpdateJob: Job? = null
     private var yearUpdateJob: Job? = null
@@ -114,12 +127,116 @@ class ReviewViewModel @Inject constructor(
 
     init {
         _uiState.value = buildReviewUiStateFromSession()
+        markReviewPayloadConsumed()
+        ensureInitialTmdbMatch()
         if (scanSessionHolder.isBulkProcessing) {
             scanSessionHolder.currentBulkRecordId?.let { recordId ->
                 bulkReviewPreloadService.schedulePreloadAfter(recordId)
             }
         }
         viewModelScope.launch { refreshActionStateNow() }
+    }
+
+    /**
+     * Rebuilds review UI when a new recognition payload was stored on the scan session.
+     */
+    fun consumeReviewPayloadFromSessionIfNeeded() {
+        val generation = scanSessionHolder.reviewPayloadGeneration.value
+        if (generation == lastConsumedReviewPayloadGeneration) {
+            return
+        }
+        lastConsumedReviewPayloadGeneration = generation
+        initialTmdbSearchAttemptedForPayloadGeneration = -1L
+        loadedExistingEntryKey = null
+        cancelPendingFieldUpdates()
+        clearActionMessages()
+        _uiState.value = buildReviewUiStateFromSession()
+        _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
+        ensureInitialTmdbMatch()
+        viewModelScope.launch { refreshActionStateNow() }
+    }
+
+    /**
+     * Copies TMDB results from the scan session into UI state, or searches TMDB when title and year
+     * are already known but no match was loaded.
+     */
+    fun ensureInitialTmdbMatch() {
+        val generation = scanSessionHolder.reviewPayloadGeneration.value
+        val state = _uiState.value
+        val sessionResults = scanSessionHolder.initialTmdbResults
+        if (state.tmdbResults.isEmpty() && sessionResults.isNotEmpty()) {
+            _uiState.update {
+                it.copy(
+                    tmdbResults = sessionResults,
+                    selectedTmdbResult = sessionResults.firstOrNull(),
+                )
+            }
+            viewModelScope.launch { refreshActionStateNow() }
+            return
+        }
+        if (state.selectedTmdbResult != null || state.tmdbResults.isNotEmpty()) {
+            return
+        }
+        if (initialTmdbSearchAttemptedForPayloadGeneration == generation) {
+            return
+        }
+        val title = state.title.trim()
+        val year = state.year.trim()
+        if (title.isEmpty() || year.isEmpty()) {
+            return
+        }
+        initialTmdbSearchAttemptedForPayloadGeneration = generation
+        viewModelScope.launch {
+            runInitialTmdbSearch(title = title, year = year)
+        }
+    }
+
+    private suspend fun runInitialTmdbSearch(title: String, year: String) {
+        if (_uiState.value.selectedTmdbResult != null || _uiState.value.tmdbResults.isNotEmpty()) {
+            return
+        }
+        _actionState.update { it.copy(isSearching = true, searchError = null) }
+        val result = tmdbRepository.searchMovies(title, year)
+        _uiState.update { currentState ->
+            if (result.isSuccess) {
+                val results = result.getOrDefault(emptyList())
+                currentState.copy(
+                    tmdbResults = results,
+                    selectedTmdbResult = results.firstOrNull(),
+                    tmdbSyncedTitle = title,
+                    tmdbSyncedYear = year,
+                )
+            } else {
+                currentState
+            }
+        }
+        _actionState.update {
+            if (result.isSuccess) {
+                val results = result.getOrDefault(emptyList())
+                it.copy(
+                    isSearching = false,
+                    searchError = if (results.isEmpty()) "No matches found." else null,
+                )
+            } else {
+                it.copy(
+                    isSearching = false,
+                    searchError = result.exceptionOrNull()?.message ?: "TMDB search failed.",
+                )
+            }
+        }
+        refreshActionStateNow()
+    }
+
+    /**
+     * Returns the TMDB row for the Matched summary line from review UI state.
+     */
+    fun resolveMatchedTmdbResultForDisplay(): TmdbSearchResult? {
+        val state = _uiState.value
+        return state.selectedTmdbResult ?: state.tmdbResults.firstOrNull()
+    }
+
+    private fun markReviewPayloadConsumed() {
+        lastConsumedReviewPayloadGeneration = scanSessionHolder.reviewPayloadGeneration.value
     }
 
     fun updateFeatureType(featureType: FeatureType) {
@@ -595,6 +712,7 @@ class ReviewViewModel @Inject constructor(
             bulkCoverRelFilepath = bulkCoverRelFilepath,
             isBulkProcessing = scanSessionHolder.isBulkProcessing,
         )
+        markReviewPayloadConsumed()
         _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
         viewModelScope.launch { refreshActionStateNow() }
     }
@@ -624,16 +742,16 @@ class ReviewViewModel @Inject constructor(
             scanSessionHolder.rememberReviewLocation(movie.location)
         }
         scanSessionHolder.rememberReviewDiscType(movie.discType)
+        val barcode = removeNewlinesFromBarcode(movie.upc.orEmpty())
         return ReviewUiState(
             featureType = featureType,
             title = movie.title,
             year = movie.year,
-            barcode = removeNewlinesFromBarcode(movie.upc.orEmpty()),
-            barcodeLlmMessage = if (movie.upc.isNullOrBlank()) {
-                "No barcode was captured; the LLM did not look up a barcode."
-            } else {
-                "Editing list entry barcode."
-            },
+            barcode = barcode,
+            recognizedTitle = movie.title,
+            recognizedYear = movie.year,
+            recognizedBarcode = barcode,
+            automaticParameterSource = null,
             tmdbResults = tmdbResults,
             selectedTmdbResult = selectedTmdbResult,
             tmdbSyncedTitle = movie.title,
@@ -663,6 +781,7 @@ class ReviewViewModel @Inject constructor(
             bulkCoverRelFilepath = preloadedReview.coverRelFilepath,
             isBulkProcessing = true,
         )
+        markReviewPayloadConsumed()
         _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
         viewModelScope.launch { refreshActionStateNow() }
     }
@@ -693,27 +812,22 @@ class ReviewViewModel @Inject constructor(
             it.title.isNotBlank() &&
                 (it.title != title || it.year != year)
         }
-        val barcodeUsedForTitle = wasBarcodeUsedForTitle(
-            coverGuess = coverGuess,
-            barcodeGuess = barcodeGuess,
-        )
+        val barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty())
         return ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
             discType = resolveDefaultReviewDiscType(),
             location = resolveDefaultReviewLocation(),
             title = title,
             year = year,
-            barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty()),
+            barcode = barcode,
             extractedCoverTitle = coverGuess?.title?.trim().orEmpty(),
-            barcodeUsedForTitle = barcodeUsedForTitle,
-            barcodeUsageMessage = buildBarcodeUsageMessage(
-                upc = capturedBarcode,
+            recognizedTitle = title,
+            recognizedYear = year,
+            recognizedBarcode = barcode,
+            automaticParameterSource = resolveAutomaticParameterSource(
                 coverGuess = coverGuess,
                 barcodeGuess = barcodeGuess,
-            ),
-            barcodeLlmMessage = buildBarcodeLlmMessage(
-                upc = capturedBarcode,
-                barcodeGuess = barcodeGuess,
+                capturedBarcode = capturedBarcode,
             ),
             barcodeSuggestion = barcodeSuggestion,
             tmdbResults = initialResults,
@@ -724,6 +838,10 @@ class ReviewViewModel @Inject constructor(
             bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
                 bulkImageRepository.resolveAbsolutePath(relativePath)
             },
+            requiresManualTitleEntry = resolveRequiresManualTitleEntry(
+                coverGuess = coverGuess,
+                capturedBarcode = capturedBarcode,
+            ),
         )
     }
 
@@ -754,64 +872,7 @@ class ReviewViewModel @Inject constructor(
         state.barcode.trim().takeIf { barcode -> barcode.isNotBlank() }
 
     private fun removeNewlinesFromBarcode(value: String): String =
-        value.filter { character -> character != '\n' && character != '\r' }
-
-    private fun buildBarcodeLlmMessage(
-        upc: String?,
-        barcodeGuess: MovieGuess?,
-    ): String {
-        if (upc.isNullOrBlank()) {
-            return "No barcode was captured; the LLM did not look up a barcode."
-        }
-        if (barcodeGuess == null) {
-            return "The LLM did not identify this barcode."
-        }
-        val barcodeTitle = barcodeGuess.title.trim()
-        val barcodeYear = barcodeGuess.year.trim()
-        if (barcodeTitle.isBlank() && barcodeYear.isBlank()) {
-            return "The LLM did not identify this barcode."
-        }
-        return when {
-            barcodeTitle.isNotBlank() && barcodeYear.isNotBlank() ->
-                "The LLM identified this barcode as $barcodeTitle ($barcodeYear)."
-            barcodeTitle.isNotBlank() ->
-                "The LLM identified this barcode as $barcodeTitle."
-            else ->
-                "The LLM identified this barcode with year $barcodeYear."
-        }
-    }
-
-    /**
-     * True when the review title came from barcode lookup because cover OCR did not produce a title.
-     */
-    private fun wasBarcodeUsedForTitle(
-        coverGuess: MovieGuess?,
-        barcodeGuess: MovieGuess?,
-    ): Boolean {
-        val coverTitle = coverGuess?.title?.trim().orEmpty()
-        val barcodeTitle = barcodeGuess?.title?.trim().orEmpty()
-        return coverTitle.isBlank() && barcodeTitle.isNotBlank()
-    }
-
-    private fun buildBarcodeUsageMessage(
-        upc: String?,
-        coverGuess: MovieGuess?,
-        barcodeGuess: MovieGuess?,
-    ): String? {
-        if (upc.isNullOrBlank()) {
-            return null
-        }
-        val coverYear = coverGuess?.year?.trim().orEmpty()
-        val barcodeYear = barcodeGuess?.year?.trim().orEmpty()
-        val usedForTitle = wasBarcodeUsedForTitle(coverGuess, barcodeGuess)
-        val usedForYear = coverYear.isBlank() && barcodeYear.isNotBlank()
-        return when {
-            usedForTitle && usedForYear -> "Barcode was used to find the title and year."
-            usedForTitle -> "Barcode was used to find the title."
-            usedForYear -> "Barcode was used to find the year."
-            else -> "Barcode was not used to find the title or year."
-        }
-    }
+        normalizeReviewBarcode(value)
 
     private fun cancelPendingFieldUpdates() {
         refreshActionStateJob?.cancel()
@@ -1054,5 +1115,71 @@ class ReviewViewModel @Inject constructor(
         const val MAX_NUMBER_OF_DISCS = 10
         const val DEFAULT_NUMBER_OF_DISCS = MIN_NUMBER_OF_DISCS
         private const val FORM_FIELD_DEBOUNCE_MS = 300L
+
+        /**
+         * Label for the Parameters from line based on recognition source and current field values.
+         */
+        fun buildParametersFromComment(
+            title: String,
+            year: String,
+            barcode: String,
+            recognizedTitle: String,
+            recognizedYear: String,
+            recognizedBarcode: String,
+            automaticParameterSource: ReviewAutomaticParameterSource?,
+        ): String {
+            val manual = title.trim() != recognizedTitle.trim() ||
+                year.trim() != recognizedYear.trim() ||
+                normalizeReviewBarcode(barcode) != recognizedBarcode.trim()
+            if (manual) {
+                return "manual"
+            }
+            return when (automaticParameterSource) {
+                ReviewAutomaticParameterSource.BARCODE_LOOKUP -> "barcode lookup"
+                ReviewAutomaticParameterSource.COVER_IMAGE -> "cover image"
+                null -> "manual"
+            }
+        }
+
+        /**
+         * True when cover OCR did not supply a title and barcode lookup prefilled the form.
+         */
+        fun resolveAutomaticParameterSource(
+            coverGuess: MovieGuess?,
+            barcodeGuess: MovieGuess?,
+            capturedBarcode: String?,
+        ): ReviewAutomaticParameterSource {
+            val coverTitle = coverGuess?.title?.trim().orEmpty()
+            val barcodeTitle = barcodeGuess?.title?.trim().orEmpty()
+            val barcode = capturedBarcode?.trim().orEmpty()
+            if (barcode.isNotBlank() && coverTitle.isBlank() && barcodeTitle.isNotBlank()) {
+                return ReviewAutomaticParameterSource.BARCODE_LOOKUP
+            }
+            return ReviewAutomaticParameterSource.COVER_IMAGE
+        }
+
+        fun normalizeReviewBarcode(value: String): String =
+            value.filter { character -> character != '\n' && character != '\r' }
+
+        const val MANUAL_TITLE_ENTRY_WARNING =
+            "We could not read a barcode or movie title from the photos. Enter the movie name and year, then tap Refresh."
+
+        /**
+         * True when neither the barcode image nor the cover image supplied a usable title.
+         */
+        fun resolveRequiresManualTitleEntry(
+            coverGuess: MovieGuess?,
+            capturedBarcode: String?,
+        ): Boolean {
+            val coverTitle = coverGuess?.title?.trim().orEmpty()
+            val barcode = capturedBarcode?.trim().orEmpty()
+            return barcode.isBlank() && coverTitle.isBlank()
+        }
+
+        /**
+         * Returns the TMDB row to show on the Matched line (selected match, else first result).
+         */
+        fun resolveMatchedTmdbResult(uiState: ReviewUiState): TmdbSearchResult? =
+            uiState.selectedTmdbResult ?: uiState.tmdbResults.firstOrNull()
     }
 }

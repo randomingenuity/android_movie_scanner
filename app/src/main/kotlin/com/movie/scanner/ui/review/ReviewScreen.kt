@@ -90,6 +90,7 @@ fun ReviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val bulkReviewSessionKey by viewModel.bulkReviewSessionKey.collectAsStateWithLifecycle()
+    val reviewPayloadGeneration by viewModel.reviewPayloadGeneration.collectAsStateWithLifecycle()
     val barcodeFocusRequester = remember { FocusRequester() }
     var barcodeFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var barcodeFieldReady by remember { mutableStateOf(false) }
@@ -169,6 +170,12 @@ fun ReviewScreen(
         }
     }
 
+    LaunchedEffect(reviewPayloadGeneration) {
+        viewModel.consumeReviewPayloadFromSessionIfNeeded()
+    }
+    LaunchedEffect(reviewPayloadGeneration, uiState.title, uiState.year) {
+        viewModel.ensureInitialTmdbMatch()
+    }
     LaunchedEffect(viewModel) {
         viewModel.navigationEventFlow.collect { event ->
             if (event is ReviewNavigationEvent.NavigateToBulkRescan) {
@@ -305,33 +312,14 @@ fun ReviewScreen(
                     }
                 }
             }
-            item(key = "cover_summary") {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = if (uiState.extractedCoverTitle.isNotBlank()) {
-                            "Cover title: ${uiState.extractedCoverTitle}"
-                        } else if (uiState.barcodeUsedForTitle) {
-                            "Cover title: (not used)"
-                        } else {
-                            "Cover title: (not detected)"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    uiState.barcodeUsageMessage?.let { message ->
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            uiState.tmdbResults.singleOrNull()?.let { matchedResult ->
-                item(key = "open_matched_link") {
-                    ReviewOpenMatchedLink(
-                        tmdbUrl = matchedResult.tmdbUrl,
-                    )
-                }
+            item(key = "cover_summary_${uiState.selectedTmdbResult?.id}_${uiState.tmdbResults.firstOrNull()?.id}") {
+                ReviewCoverSummarySection(
+                    viewModel = viewModel,
+                    uiState = uiState,
+                    title = titleInput,
+                    year = yearInput,
+                    barcode = barcodeFieldValue.text,
+                )
             }
             item(key = "title_field") {
                 OutlinedTextField(
@@ -401,14 +389,8 @@ fun ReviewScreen(
                 ReviewTmdbRefreshButton(
                     formFields = formFields,
                     titleYearChangedFromTmdbSearch = titleYearChangedFromTmdbSearch,
+                    requiresManualTitleEntry = uiState.requiresManualTitleEntry,
                     viewModel = viewModel,
-                )
-            }
-            item(key = "barcode_llm_message") {
-                Text(
-                    text = uiState.barcodeLlmMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             val barcodeSuggestion = uiState.barcodeSuggestion
@@ -491,18 +473,115 @@ fun ReviewScreen(
 }
 
 /**
+ * Cover OCR summary plus parameter source and TMDB match lines under the feature-type picker.
+ */
+@Composable
+private fun ReviewCoverSummarySection(
+    viewModel: ReviewViewModel,
+    uiState: ReviewUiState,
+    title: String,
+    year: String,
+    barcode: String,
+) {
+    val uriHandler = LocalUriHandler.current
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    val parametersFromComment = ReviewViewModel.buildParametersFromComment(
+        title = title,
+        year = year,
+        barcode = barcode,
+        recognizedTitle = uiState.recognizedTitle,
+        recognizedYear = uiState.recognizedYear,
+        recognizedBarcode = uiState.recognizedBarcode,
+        automaticParameterSource = uiState.automaticParameterSource,
+    )
+    val matchedResult = uiState.selectedTmdbResult ?: uiState.tmdbResults.firstOrNull()
+    val hasTitleAndYear = title.trim().isNotEmpty() && year.trim().isNotEmpty()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = if (uiState.extractedCoverTitle.isNotBlank()) {
+                "Cover title: ${uiState.extractedCoverTitle}"
+            } else if (uiState.automaticParameterSource == ReviewAutomaticParameterSource.BARCODE_LOOKUP) {
+                "Cover title: (not used)"
+            } else {
+                "Cover title: (not detected)"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "Parameters from: $parametersFromComment",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (uiState.requiresManualTitleEntry) {
+            Text(
+                text = ReviewViewModel.MANUAL_TITLE_ENTRY_WARNING,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Matched: ",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            when {
+                matchedResult != null -> {
+                    Text(
+                        text = matchedResult.id.toString(),
+                        modifier = Modifier.clickable {
+                            uriHandler.openUri(matchedResult.tmdbUrl)
+                        },
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    )
+                }
+                actionState.isSearching || hasTitleAndYear -> {
+                    Text(
+                        text = "…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> {
+                    Text(
+                        text = "(none)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Re-runs TMDB search when Title or Year changed, or when retrying after a search error.
  */
 @Composable
 private fun ReviewTmdbRefreshButton(
     formFields: ReviewFormFields,
     titleYearChangedFromTmdbSearch: Boolean,
+    requiresManualTitleEntry: Boolean,
     viewModel: ReviewViewModel,
 ) {
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val canRefreshTmdb = formFields.title.trim().isNotEmpty() &&
+        formFields.year.trim().isNotEmpty() &&
         !actionState.isSearching &&
-        (titleYearChangedFromTmdbSearch || actionState.searchError != null)
+        (
+            titleYearChangedFromTmdbSearch ||
+                actionState.searchError != null ||
+                requiresManualTitleEntry
+            )
     OutlinedButton(
         onClick = { viewModel.searchTmdb(formFields) },
         enabled = canRefreshTmdb,
@@ -637,24 +716,6 @@ private fun ReviewNumberOfDiscsField(
             }
         }
     }
-}
-
-/**
- * Opens the auto-applied TMDB match in the default browser when recognition returned one result.
- */
-@Composable
-private fun ReviewOpenMatchedLink(
-    tmdbUrl: String,
-) {
-    val uriHandler = LocalUriHandler.current
-    Text(
-        text = "Open Matched",
-        modifier = Modifier.clickable { uriHandler.openUri(tmdbUrl) },
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            textDecoration = TextDecoration.Underline,
-        ),
-    )
 }
 
 /**

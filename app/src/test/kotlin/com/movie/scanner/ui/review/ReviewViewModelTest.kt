@@ -18,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -26,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -39,6 +41,7 @@ class ReviewViewModelTest {
     private val bulkImageRepository = mockk<BulkImageRepository>(relaxed = true)
     private val bulkQueueSessionState = BulkQueueSessionState()
     private val bulkReviewPreloadService = mockk<BulkReviewPreloadService>(relaxed = true)
+    private val reviewPayloadGenerationFlow = MutableStateFlow(1L)
 
     private fun createViewModel(): ReviewViewModel =
         ReviewViewModel(
@@ -73,6 +76,8 @@ class ReviewViewModelTest {
         every { scanSessionHolder.bulkBatchDiscType } returns null
         every { scanSessionHolder.isBulkProcessing } returns false
         every { scanSessionHolder.bulkCoverRelFilepath } returns null
+        every { scanSessionHolder.reviewPayloadGeneration } returns reviewPayloadGenerationFlow
+        coEvery { tmdbRepository.searchMovies(any(), any()) } returns Result.success(emptyList())
         coEvery { movieRepository.existsByTmdbId(any()) } returns false
         coEvery { movieRepository.existsByTitleAndYear(any(), any()) } returns false
         coEvery { movieRepository.existsByTitleAndSeason(any(), any()) } returns false
@@ -102,16 +107,199 @@ class ReviewViewModelTest {
 
         assertEquals("Barcode Title", viewModel.uiState.value.title)
         assertEquals("2019", viewModel.uiState.value.year)
-        assertTrue(viewModel.uiState.value.barcodeUsedForTitle)
+        assertEquals(
+            ReviewAutomaticParameterSource.BARCODE_LOOKUP,
+            viewModel.uiState.value.automaticParameterSource,
+        )
     }
 
     @Test
-    fun init_doesNotMarkBarcodeUsedForTitleWhenCoverProvidesTitle() = runTest {
+    fun init_usesCoverImageParameterSourceWhenCoverProvidesTitle() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals("Cover Title", viewModel.uiState.value.extractedCoverTitle)
-        assertEquals(false, viewModel.uiState.value.barcodeUsedForTitle)
+        assertEquals(
+            ReviewAutomaticParameterSource.COVER_IMAGE,
+            viewModel.uiState.value.automaticParameterSource,
+        )
+    }
+
+    @Test
+    fun buildParametersFromComment_reportsManualWhenTitleChanged() {
+        val comment = ReviewViewModel.buildParametersFromComment(
+            title = "Edited",
+            year = "2020",
+            barcode = "9781234567890",
+            recognizedTitle = "Cover Title",
+            recognizedYear = "2020",
+            recognizedBarcode = "9781234567890",
+            automaticParameterSource = ReviewAutomaticParameterSource.COVER_IMAGE,
+        )
+
+        assertEquals("manual", comment)
+    }
+
+    @Test
+    fun buildParametersFromComment_reportsCoverImageWhenUnchanged() {
+        val comment = ReviewViewModel.buildParametersFromComment(
+            title = "Cover Title",
+            year = "2020",
+            barcode = "9781234567890",
+            recognizedTitle = "Cover Title",
+            recognizedYear = "2020",
+            recognizedBarcode = "9781234567890",
+            automaticParameterSource = ReviewAutomaticParameterSource.COVER_IMAGE,
+        )
+
+        assertEquals("cover image", comment)
+    }
+
+    @Test
+    fun resolveMatchedTmdbResult_usesSelectedMatchWhenPresent() {
+        val selected = TmdbSearchResult(
+            id = 42,
+            title = "Arrival",
+            year = "2016",
+            posterUrl = null,
+            tmdbUrl = "https://www.themoviedb.org/movie/42",
+        )
+        val other = TmdbSearchResult(
+            id = 99,
+            title = "Other",
+            year = "2015",
+            posterUrl = null,
+            tmdbUrl = "https://www.themoviedb.org/movie/99",
+        )
+        val uiState = ReviewUiState(
+            selectedTmdbResult = selected,
+            tmdbResults = listOf(selected, other),
+        )
+
+        assertEquals(42, ReviewViewModel.resolveMatchedTmdbResult(uiState)?.id)
+    }
+
+    @Test
+    fun resolveMatchedTmdbResult_fallsBackToFirstResult() {
+        val first = TmdbSearchResult(
+            id = 7,
+            title = "Arrival",
+            year = "2016",
+            posterUrl = null,
+            tmdbUrl = "https://www.themoviedb.org/movie/7",
+        )
+        val uiState = ReviewUiState(
+            tmdbResults = listOf(first),
+            selectedTmdbResult = null,
+        )
+
+        assertEquals(7, ReviewViewModel.resolveMatchedTmdbResult(uiState)?.id)
+    }
+
+    @Test
+    fun ensureInitialTmdbMatch_loadsSessionResultsIntoUiState() = runTest {
+        every { scanSessionHolder.coverGuess } returns null
+        every { scanSessionHolder.barcodeGuess } returns null
+        every { scanSessionHolder.initialTmdbResults } returns emptyList()
+        every { scanSessionHolder.resolveCapturedUpc() } returns null
+        reviewPayloadGenerationFlow.value = 1L
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.tmdbResults.isEmpty())
+
+        every { scanSessionHolder.initialTmdbResults } returns listOf(
+            TmdbSearchResult(
+                id = 7,
+                title = "Arrival",
+                year = "2016",
+                posterUrl = null,
+                tmdbUrl = "https://www.themoviedb.org/movie/7",
+            ),
+        )
+        reviewPayloadGenerationFlow.value = 2L
+        viewModel.consumeReviewPayloadFromSessionIfNeeded()
+        viewModel.ensureInitialTmdbMatch()
+        advanceUntilIdle()
+
+        assertEquals(7, viewModel.uiState.value.selectedTmdbResult?.id)
+        assertEquals(1, viewModel.uiState.value.tmdbResults.size)
+        assertEquals(7, viewModel.resolveMatchedTmdbResultForDisplay()?.id)
+    }
+
+    @Test
+    fun ensureInitialTmdbMatch_searchesTmdbWhenTitleAndYearAreKnown() = runTest {
+        every { scanSessionHolder.coverGuess } returns MovieGuess(title = "Arrival", year = "2016")
+        every { scanSessionHolder.barcodeGuess } returns null
+        every { scanSessionHolder.initialTmdbResults } returns emptyList()
+        coEvery { tmdbRepository.searchMovies("Arrival", "2016") } returns Result.success(
+            listOf(
+                TmdbSearchResult(
+                    id = 42,
+                    title = "Arrival",
+                    year = "2016",
+                    posterUrl = null,
+                    tmdbUrl = "https://www.themoviedb.org/movie/42",
+                ),
+            ),
+        )
+
+        val viewModel = createViewModel()
+        viewModel.ensureInitialTmdbMatch()
+        advanceUntilIdle()
+
+        assertEquals(42, viewModel.uiState.value.selectedTmdbResult?.id)
+        coVerify(exactly = 1) { tmdbRepository.searchMovies("Arrival", "2016") }
+    }
+
+    @Test
+    fun resolveRequiresManualTitleEntry_trueWhenBarcodeAndCoverTitleMissing() {
+        assertTrue(
+            ReviewViewModel.resolveRequiresManualTitleEntry(
+                coverGuess = null,
+                capturedBarcode = null,
+            ),
+        )
+        assertTrue(
+            ReviewViewModel.resolveRequiresManualTitleEntry(
+                coverGuess = MovieGuess(),
+                capturedBarcode = "",
+            ),
+        )
+    }
+
+    @Test
+    fun resolveRequiresManualTitleEntry_falseWhenBarcodeCaptured() {
+        assertFalse(
+            ReviewViewModel.resolveRequiresManualTitleEntry(
+                coverGuess = null,
+                capturedBarcode = "9781234567890",
+            ),
+        )
+    }
+
+    @Test
+    fun resolveRequiresManualTitleEntry_falseWhenCoverTitlePresent() {
+        assertFalse(
+            ReviewViewModel.resolveRequiresManualTitleEntry(
+                coverGuess = MovieGuess(title = "Arrival"),
+                capturedBarcode = null,
+            ),
+        )
+    }
+
+    @Test
+    fun init_setsRequiresManualTitleEntryWhenRecognitionFailed() = runTest {
+        every { scanSessionHolder.coverGuess } returns MovieGuess()
+        every { scanSessionHolder.barcodeGuess } returns null
+        every { scanSessionHolder.initialTmdbResults } returns emptyList()
+        every { scanSessionHolder.resolveCapturedUpc() } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.requiresManualTitleEntry)
+        assertEquals("", viewModel.uiState.value.title)
     }
 
     @Test
