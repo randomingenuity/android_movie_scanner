@@ -46,6 +46,8 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var lastReviewDiscType: String? = null
         private set
+    var lastReviewEdition: String? = null
+        private set
     var bulkBatchLocation: String = ""
         private set
     var bulkBatchDiscType: String? = null
@@ -135,6 +137,10 @@ class ScanSessionHolder @Inject constructor() {
 
     fun rememberReviewDiscType(discType: String?) {
         lastReviewDiscType = discType
+    }
+
+    fun rememberReviewEdition(edition: String?) {
+        lastReviewEdition = edition
     }
 
     /**

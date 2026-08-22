@@ -28,6 +28,7 @@ class CsvExporterTest {
                 sortOrder = 0,
                 featureType = FeatureType.MOVIE.label,
                 discType = "bluray",
+                edition = "theatrical",
                 location = "Shelf A",
             ),
         )
@@ -36,11 +37,11 @@ class CsvExporterTest {
         val lines = csv.lines()
 
         assertEquals(
-            "title,year,feature_type,barcode,disc_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url",
+            "title,year,feature_type,barcode,disc_type,edition,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url",
             lines[0],
         )
         assertEquals(
-            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"bluray\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\"",
+            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"bluray\",\"theatrical\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\"",
             lines[1],
         )
     }
@@ -59,13 +60,14 @@ class CsvExporterTest {
                 sortOrder = 0,
                 featureType = FeatureType.MOVIE.label,
                 discType = "bluray",
+                edition = "theatrical",
                 numberOfDiscs = 2,
             ),
         )
 
         val csv = CsvExporter.buildCsv(movies)
 
-        assertTrue(csv.contains("\"The Matrix\",\"1999\",\"Movie\",\"\",\"bluray\",\"\",\"\",\"2\","))
+        assertTrue(csv.contains("\"The Matrix\",\"1999\",\"Movie\",\"\",\"bluray\",\"theatrical\",\"\",\"\",\"2\","))
     }
 
     @Test
@@ -89,7 +91,7 @@ class CsvExporterTest {
 
         val csv = CsvExporter.buildCsv(movies)
 
-        assertTrue(csv.contains("\"Breaking Bad\",\"2008\",\"TV\",\"\",\"dvd\",\"\",\"1\",\"4\","))
+        assertTrue(csv.contains("\"Breaking Bad\",\"2008\",\"TV\",\"\",\"dvd\",\"\",\"\",\"1\",\"4\","))
     }
 
     @Test
@@ -111,7 +113,7 @@ class CsvExporterTest {
 
         assertTrue(
             csv.endsWith(
-                "\"Force Added\",\"1999\",\"Movie\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"",
+                "\"Force Added\",\"1999\",\"Movie\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"",
             ),
         )
     }

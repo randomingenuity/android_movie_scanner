@@ -5,6 +5,7 @@
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
 - Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
 - Review always shows **Parameters from** and **Matched** under the cover title; **Matched** shows the TMDB id (linked to TMDB in the default browser). When title and year are known but the match was not loaded yet, review searches TMDB automatically. When neither a barcode nor a cover title could be read from the photos, review shows a warning to enter the movie name and year and tap **Refresh**.
+- Movies require **Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Disc Type** for movies only.
 - **Refresh** below **Title** / **Year** re-runs TMDB search when those fields change or to retry after a search error; it is disabled while results are already in sync.
 
 ## Scan Bulk
@@ -24,7 +25,7 @@
 - Browse saved movies, export/share as CSV.
 - **Location** filter at the top defaults to **(All)**; other choices are each distinct saved location plus **UNLOCATED** for blank locations, with an item count suffix (e.g. `Shelf A (3)`).
 - Long lists are paginated (25 rows per page) with previous/next controls and a page summary (e.g. `Page 2 of 5`, `26–50 of 120`).
-- Tap a row to open a detail overlay with saved catalog fields (e.g. **Season** only for TV, matching the review form); close with the corner icon, the bottom **Close** button, or a tap outside the overlay.
+- Tap a row to open a detail overlay with saved catalog fields (e.g. **Season** only for TV, **Edition** only for movies, matching the review form); close with the corner icon, the bottom **Close** button, or a tap outside the overlay.
 
 ## Settings
 

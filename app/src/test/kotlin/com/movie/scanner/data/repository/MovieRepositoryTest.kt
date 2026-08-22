@@ -21,6 +21,7 @@ class MovieRepositoryTest {
     private val reviewDetails = ReviewItemDetails(
         featureType = FeatureType.MOVIE,
         discType = "bluray",
+        edition = "theatrical",
         location = "Shelf 1",
         seasonNumber = null,
         numberOfDiscs = null,
@@ -124,6 +125,7 @@ class MovieRepositoryTest {
         val televisionDetails = ReviewItemDetails(
             featureType = FeatureType.TV,
             discType = "dvd",
+            edition = null,
             location = null,
             seasonNumber = 2,
             numberOfDiscs = 3,
@@ -161,6 +163,7 @@ class MovieRepositoryTest {
         val televisionDetails = ReviewItemDetails(
             featureType = FeatureType.TV,
             discType = "bluray",
+            edition = null,
             location = null,
             seasonNumber = 2,
             numberOfDiscs = 3,

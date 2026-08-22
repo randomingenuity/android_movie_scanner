@@ -58,6 +58,7 @@ data class ReviewUiState(
     val finished: Boolean = false,
     val addedTitle: String? = null,
     val discType: String? = null,
+    val edition: String? = null,
     val location: String = "",
     val seasonNumberInput: String = "",
     val numberOfDiscsInput: Int = ReviewViewModel.DEFAULT_NUMBER_OF_DISCS,
@@ -243,11 +244,15 @@ class ReviewViewModel @Inject constructor(
         scanSessionHolder.rememberReviewFeatureType(featureType)
         _uiState.update {
             if (featureType == FeatureType.TV) {
-                it.copy(featureType = featureType)
+                it.copy(
+                    featureType = featureType,
+                    edition = null,
+                )
             } else {
                 it.copy(
                     featureType = featureType,
                     seasonNumberInput = "",
+                    edition = resolveDefaultReviewEdition(),
                 )
             }
         }
@@ -324,6 +329,13 @@ class ReviewViewModel @Inject constructor(
 
     fun updateDiscType(discType: String?) {
         _uiState.update { it.copy(discType = discType) }
+        clearActionMessages()
+        viewModelScope.launch { refreshActionStateNow() }
+    }
+
+    fun updateEdition(edition: String?) {
+        scanSessionHolder.rememberReviewEdition(edition)
+        _uiState.update { it.copy(edition = edition) }
         clearActionMessages()
         viewModelScope.launch { refreshActionStateNow() }
     }
@@ -743,6 +755,13 @@ class ReviewViewModel @Inject constructor(
             scanSessionHolder.rememberReviewLocation(movie.location)
         }
         scanSessionHolder.rememberReviewDiscType(movie.discType)
+        scanSessionHolder.rememberReviewEdition(
+            if (featureType == FeatureType.MOVIE) {
+                movie.edition
+            } else {
+                null
+            },
+        )
         val barcode = removeNewlinesFromBarcode(movie.upc.orEmpty())
         return ReviewUiState(
             featureType = featureType,
@@ -758,6 +777,11 @@ class ReviewViewModel @Inject constructor(
             tmdbSyncedTitle = movie.title,
             tmdbSyncedYear = movie.year,
             discType = movie.discType,
+            edition = if (featureType == FeatureType.MOVIE) {
+                movie.edition
+            } else {
+                null
+            },
             location = movie.location.orEmpty(),
             seasonNumberInput = movie.seasonNumber?.toString().orEmpty(),
             numberOfDiscsInput = clampNumberOfDiscs(
@@ -817,6 +841,7 @@ class ReviewViewModel @Inject constructor(
         return ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
             discType = resolveDefaultReviewDiscType(),
+            edition = resolveDefaultReviewEdition(),
             location = resolveDefaultReviewLocation(),
             title = title,
             year = year,
@@ -863,6 +888,11 @@ class ReviewViewModel @Inject constructor(
         return ReviewItemDetails(
             featureType = state.featureType,
             discType = state.discType,
+            edition = if (state.featureType == FeatureType.MOVIE) {
+                state.edition
+            } else {
+                null
+            },
             location = state.location.trim().takeIf { location -> location.isNotBlank() },
             seasonNumber = seasonNumber,
             numberOfDiscs = clampNumberOfDiscs(state.numberOfDiscsInput),
@@ -947,6 +977,7 @@ class ReviewViewModel @Inject constructor(
         }
         applyBulkBatchDiscTypePrefill()
         val discTypeFilled = !_uiState.value.discType.isNullOrBlank()
+        val editionFilled = state.featureType != FeatureType.MOVIE || state.edition != null
         val showReplaceAdd = when (state.featureType) {
             FeatureType.TV -> selected != null && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> willOverwriteTmdbMatch
@@ -960,7 +991,7 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 isBackEnabled = scanSessionHolder.isBulkProcessing &&
                     bulkQueueSessionState.lastAddedMovieId != null,
-                isAddEnabled = yearFilled && seasonFilled && discTypeFilled && selected != null,
+                isAddEnabled = yearFilled && seasonFilled && discTypeFilled && editionFilled && selected != null,
                 showReplaceAdd = showReplaceAdd,
                 showForceAdd = showForceAdd,
                 showForceReplace = showForceReplace,
@@ -992,6 +1023,13 @@ class ReviewViewModel @Inject constructor(
         }
 
         return scanSessionHolder.lastReviewDiscType?.takeIf { discType -> discType.isNotBlank() }
+    }
+
+    private fun resolveDefaultReviewEdition(): String? {
+        if (scanSessionHolder.lastReviewFeatureType != FeatureType.MOVIE) {
+            return null
+        }
+        return scanSessionHolder.lastReviewEdition
     }
 
     /**
@@ -1083,6 +1121,11 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 featureType = featureType,
                 discType = existingMovie.discType ?: batchDiscTypeFallback,
+                edition = if (featureType == FeatureType.MOVIE) {
+                    existingMovie.edition
+                } else {
+                    null
+                },
                 location = storedLocation.ifBlank { batchLocationFallback },
                 seasonNumberInput = existingMovie.seasonNumber?.toString().orEmpty(),
                 numberOfDiscsInput = clampNumberOfDiscs(
@@ -1103,6 +1146,7 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 featureType = scanSessionHolder.lastReviewFeatureType,
                 discType = resolveDefaultReviewDiscType(),
+                edition = resolveDefaultReviewEdition(),
                 location = resolveDefaultReviewLocation(),
                 numberOfDiscsInput = DEFAULT_NUMBER_OF_DISCS,
             )

@@ -73,6 +73,7 @@ class ReviewViewModelTest {
         every { scanSessionHolder.lastReviewLocation } returns ""
         every { scanSessionHolder.bulkBatchLocation } returns ""
         every { scanSessionHolder.lastReviewDiscType } returns null
+        every { scanSessionHolder.lastReviewEdition } returns null
         every { scanSessionHolder.bulkBatchDiscType } returns null
         every { scanSessionHolder.isBulkProcessing } returns false
         every { scanSessionHolder.bulkCoverRelFilepath } returns null
@@ -528,13 +529,18 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun refreshActionState_requiresDiscTypeBeforeAddEnabled() = runTest {
+    fun refreshActionState_requiresDiscTypeAndEditionBeforeAddEnabled() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
 
         viewModel.updateDiscType("bluray")
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
+
+        viewModel.updateEdition("theatrical")
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.isAddEnabled)

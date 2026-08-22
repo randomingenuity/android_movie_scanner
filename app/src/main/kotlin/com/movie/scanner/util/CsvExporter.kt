@@ -12,7 +12,7 @@ object CsvExporter {
     }
 
     fun buildCsv(movies: List<MovieEntity>): String {
-        val header = "title,year,feature_type,barcode,disc_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url"
+        val header = "title,year,feature_type,barcode,disc_type,edition,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url"
         val rows = movies.map { movie ->
             listOf(
                 movie.title.toCsvField(),
@@ -20,6 +20,11 @@ object CsvExporter {
                 movie.featureType.toCsvField(),
                 movie.upc.orEmpty().toCsvField(),
                 movie.discType.orEmpty().toCsvField(),
+                if (FeatureType.fromLabel(movie.featureType) == FeatureType.MOVIE) {
+                    movie.edition.orEmpty().toCsvField()
+                } else {
+                    "".toCsvField()
+                },
                 movie.location.orEmpty().toCsvField(),
                 if (FeatureType.fromLabel(movie.featureType) == FeatureType.TV) {
                     movie.seasonNumber?.toString().orEmpty().toCsvField()

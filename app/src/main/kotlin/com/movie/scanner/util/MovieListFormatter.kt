@@ -2,6 +2,7 @@ package com.movie.scanner.util
 
 import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.FeatureType
+import com.movie.scanner.data.model.MovieEdition
 import com.movie.scanner.data.model.MovieEntity
 
 object MovieListFormatter {
@@ -17,6 +18,11 @@ object MovieListFormatter {
             "Feature type" to movie.featureType,
             "Barcode" to movie.upc.orEmpty(),
             "Disc type" to DiscType.labelForStored(movie.discType),
+            "Edition" to if (featureType == FeatureType.MOVIE) {
+                MovieEdition.labelForStored(movie.edition)
+            } else {
+                ""
+            },
             "Location" to movie.location.orEmpty(),
         )
 
@@ -37,6 +43,11 @@ object MovieListFormatter {
         lines.add("Feature type: ${movie.featureType}")
         movie.discType?.takeIf { discType -> discType.isNotBlank() }?.let { discType ->
             lines.add("Disc: ${DiscType.labelForStored(discType)}")
+        }
+        if (FeatureType.fromLabel(movie.featureType) == FeatureType.MOVIE) {
+            movie.edition?.let { edition ->
+                lines.add("Edition: ${MovieEdition.labelForStored(edition)}")
+            }
         }
         movie.location?.takeIf { location -> location.isNotBlank() }?.let { location ->
             lines.add("Location: $location")

@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.FeatureType
+import com.movie.scanner.data.model.MovieEdition
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.util.BarcodeDecoder
 
@@ -435,6 +436,14 @@ fun ReviewScreen(
                     onDiscTypeSelected = viewModel::updateDiscType,
                 )
             }
+            if (uiState.featureType == FeatureType.MOVIE) {
+                item(key = "edition_field") {
+                    ReviewEditionField(
+                        selectedEdition = uiState.edition,
+                        onEditionSelected = viewModel::updateEdition,
+                    )
+                }
+            }
             item(key = "number_of_discs_field") {
                 ReviewNumberOfDiscsField(
                     numberOfDiscs = uiState.numberOfDiscsInput,
@@ -776,6 +785,77 @@ private fun ReviewDiscTypeField(
                         ) {
                             Text(
                                 text = discType.label,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            },
+        )
+    }
+}
+
+/**
+ * Edition picker for movies using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
+ */
+@Composable
+private fun ReviewEditionField(
+    selectedEdition: String?,
+    onEditionSelected: (String) -> Unit,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    val fieldInteractionSource = remember { MutableInteractionSource() }
+    val editionOptions = remember { MovieEdition.options }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = if (selectedEdition != null) {
+                MovieEdition.labelForStored(selectedEdition)
+            } else {
+                ""
+            },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Edition") },
+            placeholder = { Text("Required") },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = fieldInteractionSource,
+                    indication = null,
+                    onClick = { showDialog = true },
+                ),
+        )
+    }
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            title = { Text("Edition") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    editionOptions.forEach { edition ->
+                        TextButton(
+                            onClick = {
+                                onEditionSelected(edition.value)
+                                showDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = edition.label,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
