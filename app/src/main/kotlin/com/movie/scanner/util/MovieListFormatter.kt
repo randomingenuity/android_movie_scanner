@@ -1,5 +1,6 @@
 package com.movie.scanner.util
 
+import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
 
@@ -15,7 +16,7 @@ object MovieListFormatter {
             "Year" to movie.year,
             "Feature type" to movie.featureType,
             "Barcode" to movie.upc.orEmpty(),
-            "Disc type" to movie.discType.orEmpty(),
+            "Disc type" to DiscType.labelForStored(movie.discType),
             "Location" to movie.location.orEmpty(),
         )
 
@@ -35,7 +36,7 @@ object MovieListFormatter {
         val lines = mutableListOf<String>()
         lines.add("Feature type: ${movie.featureType}")
         movie.discType?.takeIf { discType -> discType.isNotBlank() }?.let { discType ->
-            lines.add("Disc: $discType")
+            lines.add("Disc: ${DiscType.labelForStored(discType)}")
         }
         movie.location?.takeIf { location -> location.isNotBlank() }?.let { location ->
             lines.add("Location: $location")

@@ -27,7 +27,7 @@ class CsvExporterTest {
                 isForceAdded = false,
                 sortOrder = 0,
                 featureType = FeatureType.MOVIE.label,
-                discType = "Blu-Ray",
+                discType = "bluray",
                 location = "Shelf A",
             ),
         )
@@ -40,7 +40,7 @@ class CsvExporterTest {
             lines[0],
         )
         assertEquals(
-            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"Blu-Ray\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\"",
+            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"bluray\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\"",
             lines[1],
         )
     }
@@ -58,14 +58,14 @@ class CsvExporterTest {
                 isForceAdded = false,
                 sortOrder = 0,
                 featureType = FeatureType.MOVIE.label,
-                discType = "Blu-Ray",
+                discType = "bluray",
                 numberOfDiscs = 2,
             ),
         )
 
         val csv = CsvExporter.buildCsv(movies)
 
-        assertTrue(csv.contains("\"The Matrix\",\"1999\",\"Movie\",\"\",\"Blu-Ray\",\"\",\"\",\"2\","))
+        assertTrue(csv.contains("\"The Matrix\",\"1999\",\"Movie\",\"\",\"bluray\",\"\",\"\",\"2\","))
     }
 
     @Test
@@ -81,7 +81,7 @@ class CsvExporterTest {
                 isForceAdded = false,
                 sortOrder = 0,
                 featureType = FeatureType.TV.label,
-                discType = "DVD",
+                discType = "dvd",
                 seasonNumber = 1,
                 numberOfDiscs = 4,
             ),
@@ -89,7 +89,7 @@ class CsvExporterTest {
 
         val csv = CsvExporter.buildCsv(movies)
 
-        assertTrue(csv.contains("\"Breaking Bad\",\"2008\",\"TV\",\"\",\"DVD\",\"\",\"1\",\"4\","))
+        assertTrue(csv.contains("\"Breaking Bad\",\"2008\",\"TV\",\"\",\"dvd\",\"\",\"1\",\"4\","))
     }
 
     @Test

@@ -20,7 +20,7 @@ class MovieRepositoryTest {
     private lateinit var movieRepository: MovieRepository
     private val reviewDetails = ReviewItemDetails(
         featureType = FeatureType.MOVIE,
-        discType = "Blu-Ray",
+        discType = "bluray",
         location = "Shelf 1",
         seasonNumber = null,
         numberOfDiscs = null,
@@ -61,7 +61,7 @@ class MovieRepositoryTest {
         assertEquals("The Matrix", insertedMovie.captured.title)
         assertEquals(3, insertedMovie.captured.sortOrder)
         assertEquals(false, insertedMovie.captured.isForceAdded)
-        assertEquals("Blu-Ray", insertedMovie.captured.discType)
+        assertEquals("bluray", insertedMovie.captured.discType)
         assertEquals("Shelf 1", insertedMovie.captured.location)
     }
 
@@ -123,7 +123,7 @@ class MovieRepositoryTest {
         coEvery { movieDao.findByTitleAndSeason("Mystery Box", 2) } returns existingMovie
         val televisionDetails = ReviewItemDetails(
             featureType = FeatureType.TV,
-            discType = "DVD",
+            discType = "dvd",
             location = null,
             seasonNumber = 2,
             numberOfDiscs = 3,
@@ -160,7 +160,7 @@ class MovieRepositoryTest {
         )
         val televisionDetails = ReviewItemDetails(
             featureType = FeatureType.TV,
-            discType = "Blu-Ray",
+            discType = "bluray",
             location = null,
             seasonNumber = 2,
             numberOfDiscs = 3,

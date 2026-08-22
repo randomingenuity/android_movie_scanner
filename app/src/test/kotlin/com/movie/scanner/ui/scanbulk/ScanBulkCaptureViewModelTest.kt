@@ -110,13 +110,13 @@ class ScanBulkCaptureViewModelTest {
 
     @Test
     fun refreshBatchHeaderDefaults_readsBatchValuesFromSession() = runTest {
-        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.bulkBatchDiscType } returns "bluray"
         every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
 
         val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
         viewModel.refreshBatchHeaderDefaults()
 
-        assertEquals("Blu-Ray", viewModel.uiState.value.bulkBatchDiscType)
+        assertEquals("bluray", viewModel.uiState.value.bulkBatchDiscType)
         assertEquals("Shelf A", viewModel.uiState.value.bulkBatchLocation)
     }
 

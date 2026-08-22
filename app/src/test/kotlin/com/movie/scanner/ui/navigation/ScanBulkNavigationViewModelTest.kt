@@ -56,7 +56,7 @@ class ScanBulkNavigationViewModelTest {
 
     @Test
     fun offerBulkDefaultsPromptIfNeeded_skipsPromptWhenBatchDefaultsAreSet() = runTest {
-        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.bulkBatchDiscType } returns "bluray"
         every { scanSessionHolder.bulkBatchLocation } returns "Shelf A"
 
         val viewModel = ScanBulkNavigationViewModel(
@@ -138,9 +138,9 @@ class ScanBulkNavigationViewModelTest {
         viewModel.openDiscTypeDialog()
         assertTrue(viewModel.bulkDefaultsPromptUiState.value.showDiscTypeDialog)
 
-        viewModel.saveBulkDiscType("Blu-Ray")
+        viewModel.saveBulkDiscType("bluray")
 
         assertFalse(viewModel.bulkDefaultsPromptUiState.value.showDiscTypeDialog)
-        verify { scanSessionHolder.rememberBulkBatchDiscType("Blu-Ray") }
+        verify { scanSessionHolder.rememberBulkBatchDiscType("bluray") }
     }
 }

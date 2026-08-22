@@ -339,13 +339,13 @@ class ReviewViewModelTest {
     @Test
     fun init_prefillsBulkBatchDiscTypeDuringBulkProcessing() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
-        every { scanSessionHolder.bulkBatchDiscType } returns "Blu-Ray"
+        every { scanSessionHolder.bulkBatchDiscType } returns "bluray"
         every { scanSessionHolder.lastReviewDiscType } returns null
 
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+        assertEquals("bluray", viewModel.uiState.value.discType)
     }
 
     @Test
@@ -363,7 +363,7 @@ class ReviewViewModelTest {
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.MOVIE.label,
-            discType = "Blu-Ray",
+            discType = "bluray",
             location = null,
         )
         coEvery { movieRepository.existsByTmdbId(1) } returns true
@@ -373,13 +373,13 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Shelf A", viewModel.uiState.value.location)
-        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+        assertEquals("bluray", viewModel.uiState.value.discType)
     }
 
     @Test
     fun refreshActionState_prefillsBulkBatchDiscTypeWhenDuplicateHasNoDiscType() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
-        every { scanSessionHolder.bulkBatchDiscType } returns "DVD"
+        every { scanSessionHolder.bulkBatchDiscType } returns "dvd"
         val existingMovie = MovieEntity(
             id = 9L,
             title = "Cover Title",
@@ -400,7 +400,7 @@ class ReviewViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertEquals("DVD", viewModel.uiState.value.discType)
+        assertEquals("dvd", viewModel.uiState.value.discType)
     }
 
     @Test
@@ -450,7 +450,7 @@ class ReviewViewModelTest {
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.TV.label,
-            discType = "DVD",
+            discType = "dvd",
             location = "Shelf B",
             seasonNumber = 2,
             numberOfDiscs = 4,
@@ -465,7 +465,7 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
-        assertEquals("DVD", viewModel.uiState.value.discType)
+        assertEquals("dvd", viewModel.uiState.value.discType)
         assertEquals("Shelf B", viewModel.uiState.value.location)
         assertEquals("2", viewModel.uiState.value.seasonNumberInput)
         assertEquals(4, viewModel.uiState.value.numberOfDiscsInput)
@@ -486,7 +486,7 @@ class ReviewViewModelTest {
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.MOVIE.label,
-            discType = "Blu-Ray",
+            discType = "bluray",
             location = "Shelf A",
         )
         coEvery { movieRepository.existsByTmdbId(1) } returns true
@@ -496,7 +496,7 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals("111111111111", viewModel.uiState.value.barcode)
-        assertEquals("Blu-Ray", viewModel.uiState.value.discType)
+        assertEquals("bluray", viewModel.uiState.value.discType)
         assertEquals("Shelf A", viewModel.uiState.value.location)
     }
 
@@ -534,7 +534,7 @@ class ReviewViewModelTest {
 
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
 
-        viewModel.updateDiscType("Blu-Ray")
+        viewModel.updateDiscType("bluray")
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.isAddEnabled)
@@ -554,7 +554,7 @@ class ReviewViewModelTest {
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.TV.label,
-            discType = "DVD",
+            discType = "dvd",
             location = "Shelf B",
             seasonNumber = 2,
             numberOfDiscs = 1,
@@ -843,7 +843,7 @@ class ReviewViewModelTest {
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.MOVIE.label,
-            discType = "DVD",
+            discType = "dvd",
             location = "Shelf B",
         )
         coEvery { movieRepository.findById(7L) } returns existingMovie
@@ -878,7 +878,7 @@ class ReviewViewModelTest {
         assertEquals("Saved Title", viewModel.uiState.value.title)
         assertEquals("2018", viewModel.uiState.value.year)
         assertEquals("3333333333333", viewModel.uiState.value.barcode)
-        assertEquals("DVD", viewModel.uiState.value.discType)
+        assertEquals("dvd", viewModel.uiState.value.discType)
         assertEquals("Shelf B", viewModel.uiState.value.location)
         assertEquals("/tmp/cover_1.jpg", viewModel.uiState.value.bulkCoverAbsolutePath)
         assertEquals(false, viewModel.actionState.value.isBackEnabled)

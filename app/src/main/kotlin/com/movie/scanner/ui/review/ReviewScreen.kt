@@ -732,7 +732,7 @@ private fun ReviewDiscTypeField(
     val discTypeOptions = remember { DiscType.options }
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = selectedDiscType.orEmpty(),
+            value = DiscType.labelForStored(selectedDiscType),
             onValueChange = {},
             readOnly = true,
             label = { Text("Disc Type") },
@@ -769,13 +769,13 @@ private fun ReviewDiscTypeField(
                     discTypeOptions.forEach { discType ->
                         TextButton(
                             onClick = {
-                                onDiscTypeSelected(discType)
+                                onDiscTypeSelected(discType.value)
                                 showDialog = false
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = discType,
+                                text = discType.label,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }

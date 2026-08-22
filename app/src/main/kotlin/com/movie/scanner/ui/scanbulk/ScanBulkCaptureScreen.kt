@@ -35,6 +35,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.movie.scanner.data.model.DiscType
 import com.movie.scanner.data.model.ScanCaptureMode
 import com.movie.scanner.ui.camera.CameraPreview
 import com.movie.scanner.ui.camera.CaptureProgressOverlay
@@ -231,8 +232,8 @@ fun ScanBulkCaptureScreen(
                             horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            val bulkBatchDiscTypeLabel = uiState.bulkBatchDiscType
-                            if (bulkBatchDiscTypeLabel.isNullOrBlank()) {
+                            val bulkBatchDiscTypeLabel = DiscType.labelForStored(uiState.bulkBatchDiscType)
+                            if (bulkBatchDiscTypeLabel.isBlank()) {
                                 Button(onClick = scanBulkNavigationViewModel::openDiscTypeDialog) {
                                     Text("Disc Type")
                                 }

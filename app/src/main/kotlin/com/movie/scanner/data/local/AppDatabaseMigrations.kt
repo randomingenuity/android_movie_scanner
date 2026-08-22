@@ -82,6 +82,16 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("UPDATE movies SET discType = 'bluray' WHERE discType = 'Blu-Ray'")
+        database.execSQL("UPDATE movies SET discType = 'dvd' WHERE discType = 'DVD'")
+        database.execSQL("UPDATE movies SET discType = '4k_bluray' WHERE discType = '4K Blu-Ray'")
+        database.execSQL("UPDATE movies SET discType = '3d_bluray' WHERE discType = '3D Blu-Ray'")
+        database.execSQL("UPDATE movies SET discType = 'hd_dvd' WHERE discType = 'HD DVD'")
+    }
+}
+
 val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL(

@@ -80,11 +80,11 @@ fun BulkDefaultsPromptDialogs(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     discTypeOptions.forEach { discType ->
                         TextButton(
-                            onClick = { onSaveBulkDiscType(discType) },
+                            onClick = { onSaveBulkDiscType(discType.value) },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = discType,
+                                text = discType.label,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
