@@ -13,7 +13,7 @@ enum class DiscType(val value: String, val label: String) {
     ;
 
     companion object {
-        val options: List<DiscType> = entries
+        val options: List<DiscType> = entries.sortedBy { discType -> discType.label }
 
         fun fromValue(value: String): DiscType? =
             entries.firstOrNull { discType -> discType.value == value }

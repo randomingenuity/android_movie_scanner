@@ -6,6 +6,20 @@ import org.junit.Test
 
 class DiscTypeTest {
     @Test
+    fun options_areSortedByLabel() {
+        assertEquals(
+            listOf(
+                "3D Blu-Ray",
+                "4K Blu-Ray",
+                "Blu-Ray",
+                "DVD",
+                "HD DVD",
+            ),
+            DiscType.options.map { discType -> discType.label },
+        )
+    }
+
+    @Test
     fun labelForStored_returnsLabelForCanonicalValue() {
         assertEquals("Blu-Ray", DiscType.labelForStored("bluray"))
         assertEquals("DVD", DiscType.labelForStored("dvd"))
