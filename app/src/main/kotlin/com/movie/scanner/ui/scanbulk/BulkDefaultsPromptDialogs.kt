@@ -30,11 +30,11 @@ fun BulkDefaultsPromptDialogs(
     onDismissBulkDefaultsPrompt: () -> Unit,
     onAcceptBulkDefaultsSetup: () -> Unit,
     onDismissDiscTypeDialog: () -> Unit,
-    onSaveBulkDiscType: (String?) -> Unit,
+    onSaveBulkDiscType: (String) -> Unit,
     onDismissLocationDialog: () -> Unit,
     onSaveBulkLocation: (String) -> Unit,
 ) {
-    val discTypeOptions = remember { listOf(null) + DiscType.options }
+    val discTypeOptions = remember { DiscType.options }
     var locationDraft by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.showLocationDialog) {
@@ -84,7 +84,7 @@ fun BulkDefaultsPromptDialogs(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = discType ?: "None",
+                                text = discType,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }

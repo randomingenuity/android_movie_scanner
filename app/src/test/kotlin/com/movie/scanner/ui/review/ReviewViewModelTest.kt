@@ -528,9 +528,39 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun refreshActionState_requiresDiscTypeBeforeAddEnabled() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
+
+        viewModel.updateDiscType("Blu-Ray")
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.actionState.value.isAddEnabled)
+    }
+
+    @Test
     fun refreshActionState_showsReplaceWhenTelevisionTitleAndSeasonAlreadyExist() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.TV.label,
+            discType = "DVD",
+            location = "Shelf B",
+            seasonNumber = 2,
+            numberOfDiscs = 1,
+        )
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
+        coEvery { movieRepository.findByTitleAndSeason("Cover Title", 2) } returns existingMovie
 
         val viewModel = createViewModel()
         advanceUntilIdle()

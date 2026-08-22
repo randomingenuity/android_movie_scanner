@@ -725,18 +725,18 @@ private fun ReviewNumberOfDiscsField(
 @Composable
 private fun ReviewDiscTypeField(
     selectedDiscType: String?,
-    onDiscTypeSelected: (String?) -> Unit,
+    onDiscTypeSelected: (String) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val fieldInteractionSource = remember { MutableInteractionSource() }
-    val discTypeOptions = remember { listOf(null) + DiscType.options }
+    val discTypeOptions = remember { DiscType.options }
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = selectedDiscType.orEmpty(),
             onValueChange = {},
             readOnly = true,
             label = { Text("Disc Type") },
-            placeholder = { Text("Optional") },
+            placeholder = { Text("Required") },
             trailingIcon = {
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
@@ -775,7 +775,7 @@ private fun ReviewDiscTypeField(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = discType ?: "None",
+                                text = discType,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }

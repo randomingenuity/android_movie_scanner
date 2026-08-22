@@ -325,6 +325,7 @@ class ReviewViewModel @Inject constructor(
     fun updateDiscType(discType: String?) {
         _uiState.update { it.copy(discType = discType) }
         clearActionMessages()
+        viewModelScope.launch { refreshActionStateNow() }
     }
 
     fun scheduleLocationUpdate(value: String) {
@@ -944,6 +945,8 @@ class ReviewViewModel @Inject constructor(
         } else {
             clearLoadedExistingEntryMetadata()
         }
+        applyBulkBatchDiscTypePrefill()
+        val discTypeFilled = !_uiState.value.discType.isNullOrBlank()
         val showReplaceAdd = when (state.featureType) {
             FeatureType.TV -> selected != null && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> willOverwriteTmdbMatch
@@ -957,7 +960,7 @@ class ReviewViewModel @Inject constructor(
             it.copy(
                 isBackEnabled = scanSessionHolder.isBulkProcessing &&
                     bulkQueueSessionState.lastAddedMovieId != null,
-                isAddEnabled = yearFilled && seasonFilled && selected != null,
+                isAddEnabled = yearFilled && seasonFilled && discTypeFilled && selected != null,
                 showReplaceAdd = showReplaceAdd,
                 showForceAdd = showForceAdd,
                 showForceReplace = showForceReplace,
@@ -970,7 +973,6 @@ class ReviewViewModel @Inject constructor(
             )
         }
         applyBulkBatchLocationPrefill()
-        applyBulkBatchDiscTypePrefill()
     }
 
     private fun resolveDefaultReviewLocation(): String {

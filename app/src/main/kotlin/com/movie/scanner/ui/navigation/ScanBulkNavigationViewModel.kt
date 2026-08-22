@@ -111,7 +111,7 @@ class ScanBulkNavigationViewModel @Inject constructor(
     /**
      * Saves the bulk disc type for later review forms.
      */
-    fun saveBulkDiscType(discType: String?) {
+    fun saveBulkDiscType(discType: String) {
         scanSessionHolder.rememberBulkBatchDiscType(discType)
         _bulkDefaultsPromptUiState.update { state ->
             state.copy(
