@@ -1,7 +1,7 @@
 package com.movie.scanner.data.model
 
 /**
- * Movie edition variants. [value] is stored in the database and written to export files;
+ * Movie edition variants. [value] is stored in the database and exported as `movie_release_type`;
  * [label] is shown in pickers and list detail overlays. [NONE] uses an empty [value].
  */
 enum class MovieEdition(val value: String, val label: String) {

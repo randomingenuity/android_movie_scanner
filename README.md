@@ -116,9 +116,9 @@ Empty list message: *No features yet. Click "Scan" to get started.*
 
 Default filename: `YYYYmmdd-HHMM_catalog.csv` (for example `20260607-1430_catalog.csv`).
 
-CSV columns: `title`, `year`, `feature_type`, `barcode`, `disc_type`, `location`, `season_number`, `number_of_discs`, `tmdb_url`, `tmdb_id`, `poster_url`
+CSV columns: `title`, `year`, `feature_type`, `barcode`, `disc_type`, `movie_release_type`, `location`, `season_number`, `number_of_discs`, `tmdb_url`, `tmdb_id`, `poster_url`
 
-All fields are quoted. `season_number` is populated for TV entries; other optional fields may be empty.
+All fields are quoted. `movie_release_type` is populated for movies; `season_number` is populated for TV entries; other optional fields may be empty.
 
 ### Export screenshot
 

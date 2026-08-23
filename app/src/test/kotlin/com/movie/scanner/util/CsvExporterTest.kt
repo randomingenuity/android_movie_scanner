@@ -37,7 +37,7 @@ class CsvExporterTest {
         val lines = csv.lines()
 
         assertEquals(
-            "title,year,feature_type,barcode,disc_type,edition,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url",
+            "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url",
             lines[0],
         )
         assertEquals(
