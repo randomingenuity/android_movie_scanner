@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Build the debug APK and install it on the first connected Android device.
+# Build the debug APK, install it on the first connected Android device, and launch it.
 # Usage:
 #   ./script/build_and_deploy_debug.sh
 
@@ -9,6 +9,8 @@ set -euo pipefail
 SCRIPT_DIRECTORY_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT_PATH="$(cd "${SCRIPT_DIRECTORY_PATH}/.." && pwd)"
 DEBUG_APK_FILEPATH="${REPOSITORY_ROOT_PATH}/app/build/outputs/apk/debug/app-debug.apk"
+APPLICATION_ID="com.moviescanner.app"
+LAUNCHER_ACTIVITY="${APPLICATION_ID}/com.movie.scanner.MainActivity"
 
 "${SCRIPT_DIRECTORY_PATH}/build_debug.sh" "$@"
 
@@ -28,3 +30,9 @@ DEVICE_SERIAL="${DEVICE_SERIALS[0]}"
 
 echo "Installing debug APK on device ${DEVICE_SERIAL}." >&2
 adb -s "${DEVICE_SERIAL}" install -r "${DEBUG_APK_FILEPATH}"
+
+echo "Starting app on device ${DEVICE_SERIAL}." >&2
+adb -s "${DEVICE_SERIAL}" shell am start -S \
+  -a android.intent.action.MAIN \
+  -c android.intent.category.LAUNCHER \
+  -n "${LAUNCHER_ACTIVITY}"
