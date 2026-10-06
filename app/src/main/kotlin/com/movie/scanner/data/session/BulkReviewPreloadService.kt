@@ -6,7 +6,9 @@ import coil.request.ImageRequest
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
+import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.util.BulkProcessingResultsJson
+import com.movie.scanner.util.resolveNormalizedCapturedUpc
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,7 @@ class BulkReviewPreloadService @Inject constructor(
     private val bulkImageRepository: BulkImageRepository,
     private val bulkRecognitionProcessor: BulkRecognitionProcessor,
     private val bulkQueueSessionState: BulkQueueSessionState,
+    private val movieRepository: MovieRepository,
 ) {
     private val preloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val imageLoader = ImageLoader(context)
@@ -71,11 +74,15 @@ class BulkReviewPreloadService @Inject constructor(
      */
     suspend fun findNextReviewableRecord(afterRecordId: Long? = null): BulkUnprocessedImageEntity? {
         val unprocessedRecords = bulkImageRepository.listUnprocessedRecords()
+        val normalizedUpcsInList = movieRepository.listNormalizedUpcsInList()
         for (record in unprocessedRecords) {
             if (afterRecordId != null && record.id <= afterRecordId) {
                 continue
             }
             if (bulkQueueSessionState.deferredRecordIds.contains(record.id)) {
+                continue
+            }
+            if (isBarcodeAlreadyInList(record, normalizedUpcsInList)) {
                 continue
             }
             if (!record.processingResultsJson.isNullOrBlank()) {
@@ -96,6 +103,10 @@ class BulkReviewPreloadService @Inject constructor(
                 .firstOrNull { candidate -> candidate.id == recordId }
                 ?: return null
             if (!record.processingResultsJson.isNullOrBlank()) {
+                val normalizedUpcsInList = movieRepository.listNormalizedUpcsInList()
+                if (isBarcodeAlreadyInList(record, normalizedUpcsInList)) {
+                    return null
+                }
                 return record
             }
             if (!bulkRecognitionProcessor.recognizingRecordIds.value.contains(recordId)) {
@@ -131,6 +142,14 @@ class BulkReviewPreloadService @Inject constructor(
                     .build(),
             )
         }
+    }
+
+    private fun isBarcodeAlreadyInList(
+        record: BulkUnprocessedImageEntity,
+        normalizedUpcsInList: Set<String>,
+    ): Boolean {
+        val normalizedCapturedUpc = resolveNormalizedCapturedUpc(record) ?: return false
+        return normalizedUpcsInList.contains(normalizedCapturedUpc)
     }
 
     private companion object {

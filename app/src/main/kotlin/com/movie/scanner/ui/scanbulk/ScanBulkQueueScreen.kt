@@ -2,6 +2,7 @@ package com.movie.scanner.ui.scanbulk
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,7 @@ private val BulkQueueRecognizingDownloadColor = Color(0xFFEF6C00)
 private val BulkQueueReadyTimerColor = Color(0xFF2E7D32)
 private val BulkQueueBarcodeResultColor = Color(0xFF1565C0)
 private val BulkQueueBarcodeRescanColor = Color(0xFF6A1B9A)
+private const val BulkQueueAlreadyInListRowAlpha = 0.45f
 
 /**
  * Lists bulk-captured image pairs and drives sequential review using pre-fetched recognition data.
@@ -385,32 +387,44 @@ private fun BulkQueueTrailingIcons(
     status: BulkQueueItemStatus,
     showBarcodeResultIcon: Boolean,
     showBarcodeRescanIcon: Boolean,
+    isBarcodeAlreadyInList: Boolean,
     onRescanClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
+    val dimLeadingIcons = if (isBarcodeAlreadyInList) {
+        Modifier.alpha(BulkQueueAlreadyInListRowAlpha)
+    } else {
+        Modifier
+    }
     Row(
         modifier = Modifier.width(BulkQueueTrailingWidth),
         horizontalArrangement = Arrangement.spacedBy(BulkQueueIconSpacing, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showBarcodeResultIcon) {
-            Icon(
-                painter = painterResource(R.drawable.barcode),
-                contentDescription = "Identified via barcode",
-                modifier = Modifier.size(BulkQueueIconSize),
-                tint = BulkQueueBarcodeResultColor,
-            )
-        } else if (showBarcodeRescanIcon) {
-            Icon(
-                painter = painterResource(R.drawable.restart_alt),
-                contentDescription = "Rescan barcode and cover",
-                modifier = Modifier
-                    .size(BulkQueueIconSize)
-                    .clickable(onClick = onRescanClick),
-                tint = BulkQueueBarcodeRescanColor,
-            )
+        Row(
+            modifier = dimLeadingIcons,
+            horizontalArrangement = Arrangement.spacedBy(BulkQueueIconSpacing, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (showBarcodeResultIcon) {
+                Icon(
+                    painter = painterResource(R.drawable.barcode),
+                    contentDescription = "Identified via barcode",
+                    modifier = Modifier.size(BulkQueueIconSize),
+                    tint = BulkQueueBarcodeResultColor,
+                )
+            } else if (showBarcodeRescanIcon && !isBarcodeAlreadyInList) {
+                Icon(
+                    painter = painterResource(R.drawable.restart_alt),
+                    contentDescription = "Rescan barcode and cover",
+                    modifier = Modifier
+                        .size(BulkQueueIconSize)
+                        .clickable(onClick = onRescanClick),
+                    tint = BulkQueueBarcodeRescanColor,
+                )
+            }
+            BulkQueueStatusIcon(status = status)
         }
-        BulkQueueStatusIcon(status = status)
         Icon(
             imageVector = Icons.Default.Delete,
             contentDescription = "Delete",
@@ -471,6 +485,16 @@ private fun BulkQueueDataRow(
     onRescanClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
+    val dimRowContent = if (row.isBarcodeAlreadyInList) {
+        Modifier.alpha(BulkQueueAlreadyInListRowAlpha)
+    } else {
+        Modifier
+    }
+    val linkColor = if (row.isBarcodeAlreadyInList) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -483,34 +507,53 @@ private fun BulkQueueDataRow(
     ) {
         Text(
             text = row.id.toString(),
-            modifier = Modifier.weight(0.7f),
+            modifier = Modifier
+                .weight(0.7f)
+                .then(dimRowContent),
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(
             text = row.timestampLabel,
-            modifier = Modifier.weight(1.5f),
+            modifier = Modifier
+                .weight(1.5f)
+                .then(dimRowContent),
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
             text = "Barcode",
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onBarcodeClick),
-            color = MaterialTheme.colorScheme.primary,
+                .then(dimRowContent)
+                .then(
+                    if (row.isBarcodeAlreadyInList) {
+                        Modifier
+                    } else {
+                        Modifier.clickable(onClick = onBarcodeClick)
+                    },
+                ),
+            color = linkColor,
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(
             text = "Cover",
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onCoverClick),
-            color = MaterialTheme.colorScheme.primary,
+                .then(dimRowContent)
+                .then(
+                    if (row.isBarcodeAlreadyInList) {
+                        Modifier
+                    } else {
+                        Modifier.clickable(onClick = onCoverClick)
+                    },
+                ),
+            color = linkColor,
             style = MaterialTheme.typography.bodyMedium,
         )
         BulkQueueTrailingIcons(
             status = row.status,
             showBarcodeResultIcon = row.showBarcodeResultIcon,
             showBarcodeRescanIcon = row.showBarcodeRescanIcon,
+            isBarcodeAlreadyInList = row.isBarcodeAlreadyInList,
             onRescanClick = onRescanClick,
             onDeleteClick = onDeleteClick,
         )

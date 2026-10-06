@@ -1328,7 +1328,7 @@ class ReviewViewModel @Inject constructor(
         }
 
         fun normalizeReviewBarcode(value: String): String =
-            value.filter { character -> character != '\n' && character != '\r' }
+            com.movie.scanner.util.normalizeReviewBarcode(value)
 
         const val MANUAL_TITLE_ENTRY_WARNING =
             "We could not read a barcode or movie title from the photos. Enter the movie name and year, then tap Refresh."

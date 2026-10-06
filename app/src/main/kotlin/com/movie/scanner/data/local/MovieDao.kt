@@ -86,4 +86,12 @@ interface MovieDao {
 
     @Query("DELETE FROM movies")
     suspend fun deleteAll()
+
+    @Query(
+        """
+        SELECT upc FROM movies
+        WHERE upc IS NOT NULL AND trim(upc) != ''
+        """,
+    )
+    suspend fun listNonBlankUpcs(): List<String>
 }

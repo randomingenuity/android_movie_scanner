@@ -5,7 +5,9 @@ import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.ReviewItemDetails
 import com.movie.scanner.data.model.TmdbSearchResult
+import com.movie.scanner.util.normalizeReviewBarcode
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +16,26 @@ class MovieRepository @Inject constructor(
     private val movieDao: MovieDao,
 ) {
     fun observeMovies(): Flow<List<MovieEntity>> = movieDao.observeMovies()
+
+    /**
+     * Normalized barcodes currently stored on list rows, for bulk queue duplicate detection.
+     */
+    fun observeNormalizedUpcsInList(): Flow<Set<String>> =
+        movieDao.observeMovies().map { movies ->
+            buildNormalizedUpcSet(
+                movies.mapNotNull { movie -> movie.upc },
+            )
+        }
+
+    suspend fun listNormalizedUpcsInList(): Set<String> =
+        buildNormalizedUpcSet(movieDao.listNonBlankUpcs())
+
+    suspend fun isNormalizedUpcInList(normalizedUpc: String): Boolean {
+        if (normalizedUpc.isBlank()) {
+            return false
+        }
+        return listNormalizedUpcsInList().contains(normalizedUpc)
+    }
 
     suspend fun listMovies(): List<MovieEntity> = movieDao.listMovies()
 
@@ -157,4 +179,10 @@ class MovieRepository @Inject constructor(
     }
 
     private suspend fun nextSortOrder(): Int = (movieDao.maxSortOrder() ?: -1) + 1
+
+    private fun buildNormalizedUpcSet(rawUpcs: List<String>): Set<String> =
+        rawUpcs
+            .map { upc -> normalizeReviewBarcode(upc) }
+            .filter { normalizedUpc -> normalizedUpc.isNotBlank() }
+            .toSet()
 }

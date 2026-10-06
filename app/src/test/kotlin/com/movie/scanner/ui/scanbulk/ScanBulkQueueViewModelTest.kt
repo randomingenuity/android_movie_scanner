@@ -6,6 +6,7 @@ import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
+import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.session.BulkQueueSessionState
 import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.ScanSessionHolder
@@ -40,6 +41,7 @@ class ScanBulkQueueViewModelTest {
     private val scanSessionHolder = mockk<ScanSessionHolder>(relaxed = true)
     private val bulkQueueSessionState = BulkQueueSessionState()
     private val bulkReviewPreloadService = mockk<BulkReviewPreloadService>(relaxed = true)
+    private val movieRepository = mockk<MovieRepository>(relaxed = true)
     private val readyResultsJson = BulkProcessingResultsJson.encode(BulkProcessingResults())
 
     @Before
@@ -47,6 +49,7 @@ class ScanBulkQueueViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { bulkImageRepository.observeAllRecords() } returns flowOf(emptyList())
         every { bulkRecognitionProcessor.recognizingRecordIds } returns MutableStateFlow(emptySet())
+        every { movieRepository.observeNormalizedUpcsInList() } returns flowOf(emptySet())
         every { scanSessionHolder.consumeBulkProcessingStopRequested() } returns false
         every { scanSessionHolder.consumeBulkQueueResume() } returns false
     }
@@ -63,6 +66,7 @@ class ScanBulkQueueViewModelTest {
             scanSessionHolder = scanSessionHolder,
             bulkQueueSessionState = bulkQueueSessionState,
             bulkReviewPreloadService = bulkReviewPreloadService,
+            movieRepository = movieRepository,
             defaultDispatcher = testDispatcher,
         )
 
@@ -111,6 +115,32 @@ class ScanBulkQueueViewModelTest {
         assertTrue(row.showBarcodeResultIcon)
         assertFalse(row.showBarcodeRescanIcon)
         assertEquals(BulkQueueItemStatus.READY, row.status)
+    }
+
+    @Test
+    fun init_marksRowWhenCapturedBarcodeMatchesListUpc() = runTest(testDispatcher) {
+        val listUpc = "9781234567890"
+        val barcodeOnlyResultsJson = BulkProcessingResultsJson.encode(
+            BulkProcessingResults(
+                barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+                capturedUpc = listUpc,
+            ),
+        )
+        val record = BulkUnprocessedImageEntity(
+            id = 3L,
+            createdAtTimestamp = 100L,
+            barcodeRelFilepath = "barcode_3.jpg",
+            coverRelFilepath = "cover_3.jpg",
+            processingResultsJson = barcodeOnlyResultsJson,
+        )
+        every { bulkImageRepository.observeAllRecords() } returns flowOf(listOf(record))
+        every { movieRepository.observeNormalizedUpcsInList() } returns flowOf(setOf(listUpc))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val row = viewModel.uiState.value.records.single()
+        assertTrue(row.isBarcodeAlreadyInList)
     }
 
     @Test
@@ -192,6 +222,7 @@ class ScanBulkQueueViewModelTest {
         coEvery { bulkImageRepository.listUnprocessedRecords() } returns listOf(firstRecord, secondRecord)
         coEvery { bulkReviewPreloadService.findNextReviewableRecord(afterRecordId = null) } returns firstRecord
         coEvery { bulkReviewPreloadService.findNextReviewableRecord(afterRecordId = 1L) } returns secondRecord
+        coEvery { movieRepository.listNormalizedUpcsInList() } returns emptySet()
         every { bulkReviewPreloadService.takePreloadedReview() } returns null
 
         val viewModel = createViewModel()

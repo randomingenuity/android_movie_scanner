@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.model.BulkUnprocessedImageEntity
 import com.movie.scanner.data.repository.BulkImageRepository
 import com.movie.scanner.data.repository.BulkRecognitionProcessor
+import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.session.BulkQueueSessionState
 import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BulkProcessingResultsJson
+import com.movie.scanner.util.resolveNormalizedCapturedUpc
 import com.movie.scanner.di.DefaultDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -50,6 +52,8 @@ data class ScanBulkQueueRow(
     val status: BulkQueueItemStatus,
     val showBarcodeResultIcon: Boolean,
     val showBarcodeRescanIcon: Boolean,
+    /** True when the captured barcode already exists on the List screen. */
+    val isBarcodeAlreadyInList: Boolean,
 )
 
 data class ScanBulkQueueUiState(
@@ -67,6 +71,7 @@ class ScanBulkQueueViewModel @Inject constructor(
     private val scanSessionHolder: ScanSessionHolder,
     private val bulkQueueSessionState: BulkQueueSessionState,
     private val bulkReviewPreloadService: BulkReviewPreloadService,
+    private val movieRepository: MovieRepository,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScanBulkQueueUiState())
@@ -80,16 +85,18 @@ class ScanBulkQueueViewModel @Inject constructor(
             combine(
                 bulkImageRepository.observeAllRecords(),
                 bulkRecognitionProcessor.recognizingRecordIds,
-            ) { records, recognizingRecordIds ->
-                records to recognizingRecordIds
+                movieRepository.observeNormalizedUpcsInList(),
+            ) { records, recognizingRecordIds, normalizedUpcsInList ->
+                Triple(records, recognizingRecordIds, normalizedUpcsInList)
             }
                 .distinctUntilChanged()
-                .collect { (records, recognizingRecordIds) ->
+                .collect { (records, recognizingRecordIds, normalizedUpcsInList) ->
                     val rows = withContext(defaultDispatcher) {
                         records.map { record ->
                             buildQueueRow(
                                 record = record,
                                 recognizingRecordIds = recognizingRecordIds,
+                                normalizedUpcsInList = normalizedUpcsInList,
                             )
                         }
                     }
@@ -270,16 +277,27 @@ class ScanBulkQueueViewModel @Inject constructor(
     private suspend fun resolveNextRecord(
         preloadedReview: PreloadedBulkReview?,
     ): BulkUnprocessedImageEntity? {
+        val normalizedUpcsInList = movieRepository.listNormalizedUpcsInList()
         if (preloadedReview != null) {
             val cachedRecord = bulkImageRepository.listUnprocessedRecords()
                 .firstOrNull { record -> record.id == preloadedReview.recordId }
             if (cachedRecord != null && !cachedRecord.processingResultsJson.isNullOrBlank()) {
-                return cachedRecord
+                if (!isBarcodeAlreadyInList(cachedRecord, normalizedUpcsInList)) {
+                    return cachedRecord
+                }
             }
         }
         return bulkReviewPreloadService.findNextReviewableRecord(
             afterRecordId = bulkQueueSessionState.processingRecordId,
         )
+    }
+
+    private fun isBarcodeAlreadyInList(
+        record: BulkUnprocessedImageEntity,
+        normalizedUpcsInList: Set<String>,
+    ): Boolean {
+        val normalizedCapturedUpc = resolveNormalizedCapturedUpc(record) ?: return false
+        return normalizedUpcsInList.contains(normalizedCapturedUpc)
     }
 
     private fun applyRecordToSession(
@@ -312,6 +330,7 @@ class ScanBulkQueueViewModel @Inject constructor(
     private fun buildQueueRow(
         record: BulkUnprocessedImageEntity,
         recognizingRecordIds: Set<Long>,
+        normalizedUpcsInList: Set<String>,
     ): ScanBulkQueueRow {
         val processingResultsJson = record.processingResultsJson
         val parsedResults = if (processingResultsJson.isNullOrBlank()) {
@@ -331,6 +350,9 @@ class ScanBulkQueueViewModel @Inject constructor(
             status = status,
             processingResultsJson = processingResultsJson,
         )
+        val normalizedCapturedUpc = resolveNormalizedCapturedUpc(record)
+        val isBarcodeAlreadyInList = normalizedCapturedUpc != null &&
+            normalizedUpcsInList.contains(normalizedCapturedUpc)
         return ScanBulkQueueRow(
             id = record.id,
             timestampLabel = timestampFormatter.format(Date(record.createdAtTimestamp)),
@@ -339,6 +361,7 @@ class ScanBulkQueueViewModel @Inject constructor(
             status = status,
             showBarcodeResultIcon = showBarcodeResultIcon,
             showBarcodeRescanIcon = showBarcodeRescanIcon,
+            isBarcodeAlreadyInList = isBarcodeAlreadyInList,
         )
     }
 
