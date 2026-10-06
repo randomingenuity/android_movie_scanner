@@ -1,10 +1,8 @@
 package com.movie.scanner.ui.review
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
@@ -49,19 +45,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalUriHandler
@@ -71,7 +61,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,6 +79,7 @@ fun ReviewScreen(
     viewModel: ReviewViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val bulkReviewSessionKey by viewModel.bulkReviewSessionKey.collectAsStateWithLifecycle()
     val reviewPayloadGeneration by viewModel.reviewPayloadGeneration.collectAsStateWithLifecycle()
     val barcodeFocusRequester = remember { FocusRequester() }
@@ -173,9 +163,6 @@ fun ReviewScreen(
 
     LaunchedEffect(reviewPayloadGeneration) {
         viewModel.consumeReviewPayloadFromSessionIfNeeded()
-    }
-    LaunchedEffect(reviewPayloadGeneration, uiState.title, uiState.year) {
-        viewModel.ensureInitialTmdbMatch()
     }
     LaunchedEffect(viewModel) {
         viewModel.navigationEventFlow.collect { event ->
@@ -272,6 +259,7 @@ fun ReviewScreen(
             titleInput.trim() != uiState.tmdbSyncedTitle.trim() ||
                 yearInput.trim() != uiState.tmdbSyncedYear.trim()
         }
+        val uriHandler = LocalUriHandler.current
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -315,8 +303,8 @@ fun ReviewScreen(
             }
             item(key = "cover_summary_${uiState.selectedTmdbResult?.id}_${uiState.tmdbResults.firstOrNull()?.id}") {
                 ReviewCoverSummarySection(
-                    viewModel = viewModel,
                     uiState = uiState,
+                    actionState = actionState,
                     title = titleInput,
                     year = yearInput,
                     barcode = barcodeFieldValue.text,
@@ -391,7 +379,8 @@ fun ReviewScreen(
                     formFields = formFields,
                     titleYearChangedFromTmdbSearch = titleYearChangedFromTmdbSearch,
                     requiresManualTitleEntry = uiState.requiresManualTitleEntry,
-                    viewModel = viewModel,
+                    actionState = actionState,
+                    onRefresh = { viewModel.searchTmdb(formFields) },
                 )
             }
             val barcodeSuggestion = uiState.barcodeSuggestion
@@ -413,21 +402,29 @@ fun ReviewScreen(
                 }
             }
             if (uiState.tmdbResults.size > 1) {
-                item(key = "tmdb_results") {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = "Confirm movie selection:",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        TmdbResultsSelectionTable(
-                            results = uiState.tmdbResults,
-                            selectedResultId = uiState.selectedTmdbResult?.id,
-                            onSelect = viewModel::selectTmdbResult,
-                        )
-                    }
+                item(key = "tmdb_results_label") {
+                    Text(
+                        text = "Confirm movie selection:",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                item(key = "tmdb_results_header") {
+                    TmdbResultTableHeaderRow()
+                }
+                item(key = "tmdb_results_header_divider") {
+                    HorizontalDivider()
+                }
+                items(
+                    items = uiState.tmdbResults,
+                    key = { result -> result.id },
+                ) { result ->
+                    TmdbResultTableRow(
+                        result = result,
+                        selected = uiState.selectedTmdbResult?.id == result.id,
+                        onSelect = { viewModel.selectTmdbResult(result) },
+                        onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
+                    )
+                    HorizontalDivider()
                 }
             }
             item(key = "disc_type_field") {
@@ -452,18 +449,21 @@ fun ReviewScreen(
             }
             item(key = "action_buttons") {
                 ReviewActionButtons(
-                    viewModel = viewModel,
-                    formFields = formFields,
+                    actionState = actionState,
+                    onGoBack = viewModel::goBackToLastAddedMovie,
+                    onAdd = { viewModel.addMovie(formFields) },
+                    onSkip = viewModel::skipMovie,
+                    onForceAdd = { viewModel.forceAddMovie(formFields) },
                 )
             }
             item(key = "search_error") {
-                ReviewSearchErrorMessage(viewModel = viewModel)
+                ReviewSearchErrorMessage(searchError = actionState.searchError)
             }
             item(key = "duplicate_message") {
-                ReviewDuplicateMessage(viewModel = viewModel)
+                ReviewDuplicateMessage(duplicateMessage = actionState.duplicateMessage)
             }
             item(key = "action_message") {
-                ReviewActionMessage(viewModel = viewModel)
+                ReviewActionMessage(actionMessage = actionState.actionMessage)
             }
             item(key = "location_field") {
                 OutlinedTextField(
@@ -486,14 +486,13 @@ fun ReviewScreen(
  */
 @Composable
 private fun ReviewCoverSummarySection(
-    viewModel: ReviewViewModel,
     uiState: ReviewUiState,
+    actionState: ReviewActionState,
     title: String,
     year: String,
     barcode: String,
 ) {
     val uriHandler = LocalUriHandler.current
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val parametersFromComment = ReviewViewModel.buildParametersFromComment(
         title = title,
         year = year,
@@ -580,9 +579,9 @@ private fun ReviewTmdbRefreshButton(
     formFields: ReviewFormFields,
     titleYearChangedFromTmdbSearch: Boolean,
     requiresManualTitleEntry: Boolean,
-    viewModel: ReviewViewModel,
+    actionState: ReviewActionState,
+    onRefresh: () -> Unit,
 ) {
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val canRefreshTmdb = formFields.title.trim().isNotEmpty() &&
         formFields.year.trim().isNotEmpty() &&
         !actionState.isSearching &&
@@ -592,7 +591,7 @@ private fun ReviewTmdbRefreshButton(
                 requiresManualTitleEntry
             )
     OutlinedButton(
-        onClick = { viewModel.searchTmdb(formFields) },
+        onClick = onRefresh,
         enabled = canRefreshTmdb,
     ) {
         if (actionState.isSearching) {
@@ -608,10 +607,12 @@ private fun ReviewTmdbRefreshButton(
  */
 @Composable
 private fun ReviewActionButtons(
-    viewModel: ReviewViewModel,
-    formFields: ReviewFormFields,
+    actionState: ReviewActionState,
+    onGoBack: () -> Unit,
+    onAdd: () -> Unit,
+    onSkip: () -> Unit,
+    onForceAdd: () -> Unit,
 ) {
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -622,24 +623,24 @@ private fun ReviewActionButtons(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedButton(
-                onClick = viewModel::goBackToLastAddedMovie,
+                onClick = onGoBack,
                 enabled = actionState.isBackEnabled,
             ) {
                 Text("Back")
             }
             Button(
-                onClick = { viewModel.addMovie(formFields) },
+                onClick = onAdd,
                 enabled = actionState.isAddEnabled,
             ) {
                 Text(if (actionState.showReplaceAdd) "Replace" else "Add")
             }
-            OutlinedButton(onClick = viewModel::skipMovie) {
+            OutlinedButton(onClick = onSkip) {
                 Text("Skip")
             }
         }
         if (actionState.showForceAdd) {
             OutlinedButton(
-                onClick = { viewModel.forceAddMovie(formFields) },
+                onClick = onForceAdd,
                 enabled = actionState.isForceAddEnabled,
             ) {
                 Text(if (actionState.showForceReplace) "Force Replace" else "Force Add")
@@ -649,17 +650,15 @@ private fun ReviewActionButtons(
 }
 
 @Composable
-private fun ReviewSearchErrorMessage(viewModel: ReviewViewModel) {
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
-    actionState.searchError?.let { error ->
+private fun ReviewSearchErrorMessage(searchError: String?) {
+    searchError?.let { error ->
         Text(text = error, color = MaterialTheme.colorScheme.error)
     }
 }
 
 @Composable
-private fun ReviewDuplicateMessage(viewModel: ReviewViewModel) {
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
-    actionState.duplicateMessage?.let { message ->
+private fun ReviewDuplicateMessage(duplicateMessage: String?) {
+    duplicateMessage?.let { message ->
         Text(
             text = message,
             color = MaterialTheme.colorScheme.primary,
@@ -668,9 +667,8 @@ private fun ReviewDuplicateMessage(viewModel: ReviewViewModel) {
 }
 
 @Composable
-private fun ReviewActionMessage(viewModel: ReviewViewModel) {
-    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
-    actionState.actionMessage?.let { message ->
+private fun ReviewActionMessage(actionMessage: String?) {
+    actionMessage?.let { message ->
         Text(text = message, color = MaterialTheme.colorScheme.error)
     }
 }
@@ -728,8 +726,7 @@ private fun ReviewNumberOfDiscsField(
 }
 
 /**
- * Main feature disc type picker using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
- * A full-size clickable overlay opens the dialog because OutlinedTextField consumes taps.
+ * Main feature disc type picker using a dialog; OutlinedButton avoids a scroll-blocking overlay.
  */
 @Composable
 private fun ReviewDiscTypeField(
@@ -737,32 +734,37 @@ private fun ReviewDiscTypeField(
     onDiscTypeSelected: (String) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val fieldInteractionSource = remember { MutableInteractionSource() }
     val discTypeOptions = remember { DiscType.options }
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = DiscType.labelForStored(selectedDiscType),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Main Feature Disc Type") },
-            placeholder = { Text("Required") },
-            trailingIcon = {
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                )
-            },
+    OutlinedButton(
+        onClick = { showDialog = true },
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable(
-                    interactionSource = fieldInteractionSource,
-                    indication = null,
-                    onClick = { showDialog = true },
-                ),
-        )
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Main Feature Disc Type",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (selectedDiscType != null) {
+                        DiscType.labelForStored(selectedDiscType)
+                    } else {
+                        "Required"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+            )
+        }
     }
     if (showDialog) {
         AlertDialog(
@@ -796,7 +798,7 @@ private fun ReviewDiscTypeField(
 }
 
 /**
- * Edition picker for movies using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
+ * Edition picker for movies using a dialog; OutlinedButton avoids a scroll-blocking overlay.
  */
 @Composable
 private fun ReviewEditionField(
@@ -804,36 +806,37 @@ private fun ReviewEditionField(
     onEditionSelected: (String) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val fieldInteractionSource = remember { MutableInteractionSource() }
     val editionOptions = remember { MovieEdition.options }
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = if (selectedEdition != null) {
-                MovieEdition.labelForStored(selectedEdition)
-            } else {
-                ""
-            },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Edition") },
-            placeholder = { Text("Required") },
-            trailingIcon = {
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                )
-            },
+    OutlinedButton(
+        onClick = { showDialog = true },
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable(
-                    interactionSource = fieldInteractionSource,
-                    indication = null,
-                    onClick = { showDialog = true },
-                ),
-        )
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Edition",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (selectedEdition != null) {
+                        MovieEdition.labelForStored(selectedEdition)
+                    } else {
+                        "Required"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+            )
+        }
     }
     if (showDialog) {
         AlertDialog(
@@ -867,112 +870,6 @@ private fun ReviewEditionField(
 }
 
 private val TmdbResultTableRowHeight = 36.dp
-private val TmdbResultTableDividerHeight = 1.dp
-private val TmdbResultTableEntryHeight = TmdbResultTableRowHeight + TmdbResultTableDividerHeight
-private const val TmdbResultTableMaxVisibleRows = 3
-private val TmdbResultTableScrollbarWidth = 4.dp
-private val TmdbResultTableScrollbarMinThumbHeight = 24.dp
-
-/**
- * Draws a vertical scrollbar thumb on the trailing edge of the TMDB pick table body.
- */
-private fun Modifier.drawTmdbTableVerticalScrollbar(
-    scrollState: ScrollState,
-    thumbColor: Color,
-    totalContentHeight: Dp,
-    scrollbarWidth: Dp = TmdbResultTableScrollbarWidth,
-): Modifier = drawWithContent {
-    drawContent()
-
-    val viewportHeight = size.height
-    val totalContentHeightPixels = totalContentHeight.toPx()
-    val maxScroll = maxOf(
-        scrollState.maxValue.toFloat(),
-        totalContentHeightPixels - viewportHeight,
-    )
-    val scrollbarWidthPixels = scrollbarWidth.toPx()
-
-    if (maxScroll <= 0f) {
-        drawRoundRect(
-            color = thumbColor,
-            topLeft = Offset(size.width - scrollbarWidthPixels, 0f),
-            size = Size(scrollbarWidthPixels, viewportHeight),
-            cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
-        )
-        return@drawWithContent
-    }
-
-    val scrollOffset = scrollState.value.toFloat().coerceIn(0f, maxScroll)
-    val contentHeight = viewportHeight + maxScroll
-    val thumbHeight = (viewportHeight / contentHeight * viewportHeight)
-        .coerceAtLeast(TmdbResultTableScrollbarMinThumbHeight.toPx())
-    val scrollRange = (viewportHeight - thumbHeight).coerceAtLeast(0f)
-    val thumbOffset = if (scrollRange > 0f) {
-        scrollRange * scrollOffset / maxScroll
-    } else {
-        0f
-    }
-
-    drawRoundRect(
-        color = thumbColor,
-        topLeft = Offset(size.width - scrollbarWidthPixels, thumbOffset),
-        size = Size(scrollbarWidthPixels, thumbHeight),
-        cornerRadius = CornerRadius(scrollbarWidthPixels / 2f),
-    )
-}
-
-/**
- * Compact TMDB pick list: Name and Year columns, Open icon per row, scroll when more than three results.
- */
-@Composable
-private fun TmdbResultsSelectionTable(
-    results: List<TmdbSearchResult>,
-    selectedResultId: Int?,
-    onSelect: (TmdbSearchResult) -> Unit,
-) {
-    val uriHandler = LocalUriHandler.current
-    val scrollState = rememberScrollState()
-    val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
-    val tableBodyHeight = TmdbResultTableEntryHeight * visibleRowCount
-    val scrollEnabled = results.size > TmdbResultTableMaxVisibleRows
-    val totalContentHeight = TmdbResultTableEntryHeight * results.size
-    val scrollbarThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-    scrollState.value
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        TmdbResultTableHeaderRow()
-        HorizontalDivider()
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(tableBodyHeight)
-                .drawTmdbTableVerticalScrollbar(
-                    scrollState = scrollState,
-                    thumbColor = scrollbarThumbColor,
-                    totalContentHeight = totalContentHeight,
-                ),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState, enabled = scrollEnabled)
-                    .padding(end = 8.dp),
-            ) {
-                results.forEach { result ->
-                    key(result.id) {
-                        TmdbResultTableRow(
-                            result = result,
-                            selected = selectedResultId == result.id,
-                            onSelect = { onSelect(result) },
-                            onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * Column headers for the TMDB result pick table (Name, Year, Open).

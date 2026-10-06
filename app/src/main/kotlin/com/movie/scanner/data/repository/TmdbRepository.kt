@@ -15,8 +15,16 @@ class TmdbRepository @Inject constructor(
     private val apiKeyStore: ApiKeyStore,
     @ApplicationContext private val context: Context,
 ) {
+    @Volatile
+    private var cachedPosterBaseUrlApiKey: String? = null
+
+    @Volatile
+    private var cachedPosterBaseUrl: String? = null
+
     suspend fun validateApiKey(apiKey: String): Result<Unit> = runCatching {
         tmdbApi.getConfiguration(apiKey)
+        cachedPosterBaseUrlApiKey = apiKey
+        cachedPosterBaseUrl = null
     }
 
     suspend fun searchMovies(title: String, year: String?): Result<List<TmdbSearchResult>> {
@@ -31,8 +39,7 @@ class TmdbRepository @Inject constructor(
                 year = year?.takeIf { it.isNotBlank() },
                 language = language,
             )
-            val configuration = tmdbApi.getConfiguration(apiKey)
-            val posterBaseUrl = configuration.images?.secureBaseUrl ?: "https://image.tmdb.org/t/p/w342"
+            val posterBaseUrl = resolvePosterBaseUrl(apiKey)
             response.results.map { movie ->
                 val releaseYear = movie.releaseDate?.take(4).orEmpty()
                 val posterUrl = movie.posterPath?.let { posterBaseUrl + it }
@@ -45,5 +52,21 @@ class TmdbRepository @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * Loads TMDB image base URL once per API key and reuses it for subsequent searches.
+     */
+    private suspend fun resolvePosterBaseUrl(apiKey: String): String {
+        val cachedKey = cachedPosterBaseUrlApiKey
+        val cachedUrl = cachedPosterBaseUrl
+        if (cachedKey == apiKey && cachedUrl != null) {
+            return cachedUrl
+        }
+        val configuration = tmdbApi.getConfiguration(apiKey)
+        val posterBaseUrl = configuration.images?.secureBaseUrl ?: "https://image.tmdb.org/t/p/w342"
+        cachedPosterBaseUrlApiKey = apiKey
+        cachedPosterBaseUrl = posterBaseUrl
+        return posterBaseUrl
     }
 }
