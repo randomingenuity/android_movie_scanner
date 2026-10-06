@@ -338,15 +338,15 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun init_prefillsBulkBatchDiscTypeDuringBulkProcessing() = runTest {
+    fun init_leavesDiscTypeEmptyDuringBulkProcessingUntilUserSelects() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.bulkBatchDiscType } returns "bluray"
-        every { scanSessionHolder.lastReviewDiscType } returns null
+        every { scanSessionHolder.lastReviewDiscType } returns "dvd"
 
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertEquals("bluray", viewModel.uiState.value.discType)
+        assertEquals(null, viewModel.uiState.value.discType)
     }
 
     @Test
@@ -378,7 +378,7 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun refreshActionState_prefillsBulkBatchDiscTypeWhenDuplicateHasNoDiscType() = runTest {
+    fun refreshActionState_leavesDiscTypeEmptyWhenDuplicateHasNoDiscType() = runTest {
         every { scanSessionHolder.isBulkProcessing } returns true
         every { scanSessionHolder.bulkBatchDiscType } returns "dvd"
         val existingMovie = MovieEntity(
@@ -401,7 +401,7 @@ class ReviewViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertEquals("dvd", viewModel.uiState.value.discType)
+        assertEquals(null, viewModel.uiState.value.discType)
     }
 
     @Test
