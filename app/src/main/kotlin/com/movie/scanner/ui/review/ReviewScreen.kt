@@ -630,6 +630,16 @@ private fun ReviewActionButtons(
                 Text("Skip")
             }
         }
+        if (!actionState.isAddEnabled) {
+            actionState.addDisabledReason?.let { reason ->
+                Text(
+                    text = reason,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         if (actionState.showForceAdd) {
             OutlinedButton(
                 onClick = onForceAdd,

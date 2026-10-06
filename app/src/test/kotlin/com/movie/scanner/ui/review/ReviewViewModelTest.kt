@@ -526,6 +526,7 @@ class ReviewViewModelTest {
         assertEquals(false, viewModel.actionState.value.showReplaceAdd)
         assertEquals(null, viewModel.actionState.value.duplicateMessage)
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals("Enter a season number.", viewModel.actionState.value.addDisabledReason)
     }
 
     @Test
@@ -534,16 +535,22 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals(
+            "Select main feature disc type.",
+            viewModel.actionState.value.addDisabledReason,
+        )
 
         viewModel.updateDiscType("bluray")
         advanceUntilIdle()
 
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals("Select an edition.", viewModel.actionState.value.addDisabledReason)
 
         viewModel.updateEdition("theatrical")
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.addDisabledReason)
     }
 
     @Test
@@ -576,9 +583,28 @@ class ReviewViewModelTest {
 
         assertEquals(true, viewModel.actionState.value.showReplaceAdd)
         assertEquals(true, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.addDisabledReason)
         assertEquals(
             "Already in list. Replace will replace the existing entry.",
             viewModel.actionState.value.duplicateMessage,
+        )
+    }
+
+    @Test
+    fun refreshActionState_addDisabledReasonExplainsTelevisionDuplicateUntilDiscTypeSelected() = runTest {
+        every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateSeasonNumberInput("2")
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals(
+            "This title and season are already in the list. Select main feature disc type to use Replace.",
+            viewModel.actionState.value.addDisabledReason,
         )
     }
 

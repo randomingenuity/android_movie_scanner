@@ -5,7 +5,7 @@
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
 - Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
 - Review always shows **Parameters from** and **Matched** under the cover title; **Matched** shows the TMDB id (linked to TMDB in the default browser). When title and year are known but the match was not loaded yet, review searches TMDB automatically. When neither a barcode nor a cover title could be read from the photos, review shows a warning to enter the movie name and year and tap **Refresh**.
-- Movies require **Main Feature Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Main Feature Disc Type** for movies only.
+- Movies require **Main Feature Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Main Feature Disc Type** for movies only. When **Add** (or **Replace**) is disabled, a red reason appears below the Back / Add / Skip row (missing fields, TMDB selection, or an entry already in the list for that title/season or TMDB match).
 - **Refresh** below **Title** / **Year** re-runs TMDB search when those fields change or to retry after a search error; it is disabled while results are already in sync.
 
 ## Scan Bulk

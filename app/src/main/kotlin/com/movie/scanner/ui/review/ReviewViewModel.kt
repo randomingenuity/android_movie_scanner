@@ -83,6 +83,7 @@ data class ReviewActionState(
     val isSearching: Boolean = false,
     val searchError: String? = null,
     val duplicateMessage: String? = null,
+    val addDisabledReason: String? = null,
     val actionMessage: String? = null,
 )
 
@@ -987,11 +988,26 @@ class ReviewViewModel @Inject constructor(
             FeatureType.TV -> showForceAdd && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> showForceAdd && willOverwriteTitleAndYear
         }
+        val isAddEnabled = yearFilled && seasonFilled && discTypeFilled && editionFilled && selected != null
+        val addDisabledReason = if (isAddEnabled) {
+            null
+        } else {
+            buildAddDisabledReason(
+                state = state,
+                yearFilled = yearFilled,
+                seasonFilled = seasonFilled,
+                discTypeFilled = discTypeFilled,
+                editionFilled = editionFilled,
+                selected = selected,
+                willOverwriteTitleAndSeason = willOverwriteTitleAndSeason,
+                willOverwriteTmdbMatch = willOverwriteTmdbMatch,
+            )
+        }
         _actionState.update {
             it.copy(
                 isBackEnabled = scanSessionHolder.isBulkProcessing &&
                     bulkQueueSessionState.lastAddedMovieId != null,
-                isAddEnabled = yearFilled && seasonFilled && discTypeFilled && editionFilled && selected != null,
+                isAddEnabled = isAddEnabled,
                 showReplaceAdd = showReplaceAdd,
                 showForceAdd = showForceAdd,
                 showForceReplace = showForceReplace,
@@ -1001,6 +1017,7 @@ class ReviewViewModel @Inject constructor(
                     showForceReplace -> "Already in list. Force Replace will replace the existing entry."
                     else -> null
                 },
+                addDisabledReason = addDisabledReason,
             )
         }
         applyBulkBatchLocationPrefill()
@@ -1039,6 +1056,52 @@ class ReviewViewModel @Inject constructor(
             return null
         }
         return IntegerInput.parseOptionalInt(state.seasonNumberInput)
+    }
+
+    private fun buildAddDisabledReason(
+        state: ReviewUiState,
+        yearFilled: Boolean,
+        seasonFilled: Boolean,
+        discTypeFilled: Boolean,
+        editionFilled: Boolean,
+        selected: TmdbSearchResult?,
+        willOverwriteTitleAndSeason: Boolean,
+        willOverwriteTmdbMatch: Boolean,
+    ): String {
+        if (selected == null) {
+            if (state.featureType == FeatureType.TV && willOverwriteTitleAndSeason) {
+                return "This title and season are already in the list. Select a TMDB match to replace it."
+            }
+            if (state.featureType == FeatureType.MOVIE && willOverwriteTmdbMatch) {
+                return "This movie is already in the list. Select a TMDB match to replace it."
+            }
+            if (state.tmdbResults.isEmpty()) {
+                return "Tap Refresh to search TMDB, then select a match."
+            }
+            return "Select a TMDB match below."
+        }
+        if (!yearFilled) {
+            return "Enter a year."
+        }
+        if (state.featureType == FeatureType.TV && !seasonFilled) {
+            return "Enter a season number."
+        }
+        if (!discTypeFilled) {
+            if (state.featureType == FeatureType.TV && willOverwriteTitleAndSeason) {
+                return "This title and season are already in the list. Select main feature disc type to use Replace."
+            }
+            if (state.featureType == FeatureType.MOVIE && willOverwriteTmdbMatch) {
+                return "This movie is already in the list. Select main feature disc type to use Replace."
+            }
+            return "Select main feature disc type."
+        }
+        if (!editionFilled) {
+            if (willOverwriteTmdbMatch) {
+                return "This movie is already in the list. Select an edition to use Replace."
+            }
+            return "Select an edition."
+        }
+        return "Complete the required fields above."
     }
 
     private suspend fun resolveExistingMovie(state: ReviewUiState): MovieEntity? {
