@@ -235,7 +235,7 @@ fun ScanBulkCaptureScreen(
                             val bulkBatchDiscTypeLabel = DiscType.labelForStored(uiState.bulkBatchDiscType)
                             if (bulkBatchDiscTypeLabel.isBlank()) {
                                 Button(onClick = scanBulkNavigationViewModel::openDiscTypeDialog) {
-                                    Text("Disc Type")
+                                    Text("Main Feature Disc Type")
                                 }
                             } else {
                                 Text(

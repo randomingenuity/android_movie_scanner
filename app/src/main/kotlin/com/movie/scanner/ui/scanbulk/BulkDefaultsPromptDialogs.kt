@@ -75,7 +75,7 @@ fun BulkDefaultsPromptDialogs(
     if (uiState.showDiscTypeDialog) {
         AlertDialog(
             onDismissRequest = onDismissDiscTypeDialog,
-            title = { Text("Disc Type") },
+            title = { Text("Main Feature Disc Type") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     discTypeOptions.forEach { discType ->

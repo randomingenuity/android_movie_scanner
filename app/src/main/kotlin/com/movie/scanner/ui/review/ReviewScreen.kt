@@ -728,7 +728,7 @@ private fun ReviewNumberOfDiscsField(
 }
 
 /**
- * Disc type picker using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
+ * Main feature disc type picker using a dialog instead of ExposedDropdownMenuBox to avoid scroll jank.
  * A full-size clickable overlay opens the dialog because OutlinedTextField consumes taps.
  */
 @Composable
@@ -744,7 +744,7 @@ private fun ReviewDiscTypeField(
             value = DiscType.labelForStored(selectedDiscType),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Disc Type") },
+            label = { Text("Main Feature Disc Type") },
             placeholder = { Text("Required") },
             trailingIcon = {
                 Icon(
@@ -772,7 +772,7 @@ private fun ReviewDiscTypeField(
                     Text("Cancel")
                 }
             },
-            title = { Text("Disc Type") },
+            title = { Text("Main Feature Disc Type") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     discTypeOptions.forEach { discType ->

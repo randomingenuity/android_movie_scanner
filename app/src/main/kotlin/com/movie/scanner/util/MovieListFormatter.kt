@@ -17,7 +17,7 @@ object MovieListFormatter {
             "Year" to movie.year,
             "Feature type" to movie.featureType,
             "Barcode" to movie.upc.orEmpty(),
-            "Disc type" to DiscType.labelForStored(movie.discType),
+            "Main feature disc type" to DiscType.labelForStored(movie.discType),
             "Edition" to if (featureType == FeatureType.MOVIE) {
                 MovieEdition.labelForStored(movie.edition)
             } else {

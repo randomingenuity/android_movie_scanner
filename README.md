@@ -81,7 +81,7 @@ Loading messages include **No internet connection** / **Offline scanning is not 
 - Note showing whether the LLM identified the barcode
 - **Alt title** chip when barcode and cover disagree (tap to apply the suggested title and year shown beside it)
 - TMDB result list with posters when there is more than one match; pick the correct match
-- **Disc Type** (optional), **Number of Discs**, and **Location** (location is retained from the previous entry; clearing it clears the retained value)
+- **Main Feature Disc Type** (optional), **Number of Discs**, and **Location** (location is retained from the previous entry; clearing it clears the retained value)
 - Action buttons: **Re-search TMDB**, **Add** / **Replace**, **Skip**, and **Force Add** / **Force Replace** when applicable
 - **Add** or **Replace** when a TMDB match is selected and the item is already in the list (movies: matched by TMDB id; TV: matched by title and season)
 - **Force Add** or **Force Replace** when no TMDB match is selected (title + year for movies; title + season for TV)

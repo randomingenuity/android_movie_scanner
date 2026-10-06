@@ -5,7 +5,7 @@
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
 - Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
 - Review always shows **Parameters from** and **Matched** under the cover title; **Matched** shows the TMDB id (linked to TMDB in the default browser). When title and year are known but the match was not loaded yet, review searches TMDB automatically. When neither a barcode nor a cover title could be read from the photos, review shows a warning to enter the movie name and year and tap **Refresh**.
-- Movies require **Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Disc Type** for movies only.
+- Movies require **Main Feature Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Main Feature Disc Type** for movies only.
 - **Refresh** below **Title** / **Year** re-runs TMDB search when those fields change or to retry after a search error; it is disabled while results are already in sync.
 
 ## Scan Bulk
@@ -13,7 +13,7 @@
 - **Scan Bulk** tab: opens the bulk queue when unprocessed pairs remain from an earlier session; otherwise opens bulk capture. On first bulk entry each session (queue or capture), if batch disc type or location is unset, a prompt offers to set them before continuing.
 - Header shows **Barcode N** / **Cover N** for the current pair.
 - **Done** (top right) is always available to open the bulk queue, including items from earlier sessions.
-- **Disc Type** (left of Location when no batch disc type is set) opens a picker with the same options as the review form; once saved, the disc type appears as a clickable link and pre-fills the Disc Type field on each review form during bulk processing.
+- **Main Feature Disc Type** (left of Location when no batch disc type is set) opens a picker with the same options as the review form; once saved, the disc type appears as a clickable link and pre-fills the Main Feature Disc Type field on each review form during bulk processing.
 - **Location** (beside Done when no batch location is set) opens a prompt to name the shelf or bin for this batch; once saved, the location name appears as a clickable link in place of the button and pre-fills the Location field on each review form during bulk processing.
 - Queue table: ID, Timestamp, Barcode, Cover (tap for preview), Status (checkmark when reviewed, orange download while recognizing, green timer when recognition is ready, yellow timer while waiting; blue barcode icon when recognition finished from barcode lookup alone; purple restart-alt icon when barcode lookup did not finish the row—tap to rescan barcode and cover), delete (trash icon per row). Rows are sorted by ID ascending; **Clear Done** (top right) removes all processed rows and their images.
 - After each barcode/cover pair is saved, recognition (LLM + TMDB) runs automatically in the background; results are stored on the queue row as JSON.
