@@ -516,6 +516,37 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun refreshActionState_enablesReplaceWhenExistingMovieMetadataPrefillsEdition() = runTest {
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = "bluray",
+            edition = "theatrical",
+            location = "Shelf A",
+        )
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+        coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("theatrical", viewModel.uiState.value.edition)
+        assertEquals("bluray", viewModel.uiState.value.discType)
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
+        assertEquals(true, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
+        assertEquals(null, viewModel.actionState.value.addDisabledReason)
+    }
+
+    @Test
     fun refreshActionState_doesNotMatchTelevisionDuplicateUntilSeasonEntered() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         coEvery { movieRepository.existsByTmdbId(1) } returns true
@@ -584,16 +615,46 @@ class ReviewViewModelTest {
         assertEquals(true, viewModel.actionState.value.showReplaceAdd)
         assertEquals(true, viewModel.actionState.value.isAddEnabled)
         assertEquals(null, viewModel.actionState.value.addDisabledReason)
-        assertEquals(
-            "Already in list. Replace will replace the existing entry.",
-            viewModel.actionState.value.duplicateMessage,
-        )
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
+    }
+
+    @Test
+    fun refreshActionState_hidesDuplicateMessageWhenMovieReplaceIsReady() = runTest {
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateDiscType("bluray")
+        viewModel.updateEdition("theatrical")
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
+        assertEquals(true, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
     }
 
     @Test
     fun refreshActionState_addDisabledReasonExplainsTelevisionDuplicateUntilDiscTypeSelected() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "111111111111",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.TV.label,
+            discType = null,
+            location = "Shelf B",
+            seasonNumber = 2,
+            numberOfDiscs = 1,
+        )
         coEvery { movieRepository.existsByTitleAndSeason("Cover Title", 2) } returns true
+        coEvery { movieRepository.findByTitleAndSeason("Cover Title", 2) } returns existingMovie
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -601,6 +662,8 @@ class ReviewViewModelTest {
         viewModel.updateSeasonNumberInput("2")
         advanceUntilIdle()
 
+        assertEquals(FeatureType.TV, viewModel.uiState.value.featureType)
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
         assertEquals(false, viewModel.actionState.value.isAddEnabled)
         assertEquals(
             "This title and season are already in the list. Select main feature disc type to use Replace.",
@@ -618,10 +681,8 @@ class ReviewViewModelTest {
 
         assertEquals(true, viewModel.actionState.value.showForceAdd)
         assertEquals(true, viewModel.actionState.value.showForceReplace)
-        assertEquals(
-            "Already in list. Force Replace will replace the existing entry.",
-            viewModel.actionState.value.duplicateMessage,
-        )
+        assertEquals(true, viewModel.actionState.value.isForceAddEnabled)
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
     }
 
     @Test

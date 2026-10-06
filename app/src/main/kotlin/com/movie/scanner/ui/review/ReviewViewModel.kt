@@ -976,31 +976,58 @@ class ReviewViewModel @Inject constructor(
         } else {
             clearLoadedExistingEntryMetadata()
         }
-        val discTypeFilled = !_uiState.value.discType.isNullOrBlank()
+        val currentState = _uiState.value
+        val seasonNumberAfterMetadata = parseEnteredSeasonNumber(currentState)
+        val willOverwriteTitleAndSeasonNow = if (
+            currentState.featureType == FeatureType.TV &&
+            currentState.title.trim().isNotEmpty() &&
+            seasonNumberAfterMetadata != null
+        ) {
+            movieRepository.existsByTitleAndSeason(
+                currentState.title.trim(),
+                seasonNumberAfterMetadata,
+            )
+        } else {
+            false
+        }
+        val selectedAfterMetadata = currentState.selectedTmdbResult
+        val willOverwriteTmdbMatchNow = if (currentState.featureType == FeatureType.MOVIE) {
+            selectedAfterMetadata?.let { movieRepository.existsByTmdbId(it.id) } ?: false
+        } else {
+            false
+        }
+        val discTypeFilled = !currentState.discType.isNullOrBlank()
         val editionFilled =
-            state.featureType != FeatureType.MOVIE || !state.edition.isNullOrBlank()
-        val showReplaceAdd = when (state.featureType) {
-            FeatureType.TV -> selected != null && willOverwriteTitleAndSeason
-            FeatureType.MOVIE -> willOverwriteTmdbMatch
+            currentState.featureType != FeatureType.MOVIE || !currentState.edition.isNullOrBlank()
+        val seasonFilledForAdd =
+            currentState.featureType != FeatureType.TV || seasonNumberAfterMetadata != null
+        val showReplaceAdd = when (currentState.featureType) {
+            FeatureType.TV -> selectedAfterMetadata != null && willOverwriteTitleAndSeasonNow
+            FeatureType.MOVIE -> willOverwriteTmdbMatchNow
         }
         val showForceAdd = titleFilled && yearFilled && seasonFilled && isDataIncomplete
         val showForceReplace = when (state.featureType) {
             FeatureType.TV -> showForceAdd && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> showForceAdd && willOverwriteTitleAndYear
         }
-        val isAddEnabled = yearFilled && seasonFilled && discTypeFilled && editionFilled && selected != null
+        val isAddEnabled =
+            yearFilled &&
+                seasonFilledForAdd &&
+                discTypeFilled &&
+                editionFilled &&
+                selectedAfterMetadata != null
         val addDisabledReason = if (isAddEnabled) {
             null
         } else {
             buildAddDisabledReason(
-                state = state,
+                state = currentState,
                 yearFilled = yearFilled,
-                seasonFilled = seasonFilled,
+                seasonFilled = seasonFilledForAdd,
                 discTypeFilled = discTypeFilled,
                 editionFilled = editionFilled,
                 selected = selected,
-                willOverwriteTitleAndSeason = willOverwriteTitleAndSeason,
-                willOverwriteTmdbMatch = willOverwriteTmdbMatch,
+                willOverwriteTitleAndSeason = willOverwriteTitleAndSeasonNow,
+                willOverwriteTmdbMatch = willOverwriteTmdbMatchNow,
             )
         }
         _actionState.update {
@@ -1013,8 +1040,10 @@ class ReviewViewModel @Inject constructor(
                 showForceReplace = showForceReplace,
                 isForceAddEnabled = showForceAdd,
                 duplicateMessage = when {
-                    showReplaceAdd -> "Already in list. Replace will replace the existing entry."
-                    showForceReplace -> "Already in list. Force Replace will replace the existing entry."
+                    showReplaceAdd && !isAddEnabled ->
+                        "Already in list. Replace will replace the existing entry."
+                    showForceReplace && !showForceAdd ->
+                        "Already in list. Force Replace will replace the existing entry."
                     else -> null
                 },
                 addDisabledReason = addDisabledReason,
