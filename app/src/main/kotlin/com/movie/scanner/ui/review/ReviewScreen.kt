@@ -402,29 +402,13 @@ fun ReviewScreen(
                 }
             }
             if (uiState.tmdbResults.size > 1) {
-                item(key = "tmdb_results_label") {
-                    Text(
-                        text = "Confirm movie selection:",
-                        style = MaterialTheme.typography.titleMedium,
+                item(key = "tmdb_results_section") {
+                    ReviewTmdbResultSelectionSection(
+                        results = uiState.tmdbResults,
+                        selectedResultId = uiState.selectedTmdbResult?.id,
+                        onSelectResult = viewModel::selectTmdbResult,
+                        onOpenTmdb = { tmdbUrl -> uriHandler.openUri(tmdbUrl) },
                     )
-                }
-                item(key = "tmdb_results_header") {
-                    TmdbResultTableHeaderRow()
-                }
-                item(key = "tmdb_results_header_divider") {
-                    HorizontalDivider()
-                }
-                items(
-                    items = uiState.tmdbResults,
-                    key = { result -> result.id },
-                ) { result ->
-                    TmdbResultTableRow(
-                        result = result,
-                        selected = uiState.selectedTmdbResult?.id == result.id,
-                        onSelect = { viewModel.selectTmdbResult(result) },
-                        onOpenTmdb = { uriHandler.openUri(result.tmdbUrl) },
-                    )
-                    HorizontalDivider()
                 }
             }
             item(key = "disc_type_field") {
@@ -870,6 +854,50 @@ private fun ReviewEditionField(
 }
 
 private val TmdbResultTableRowHeight = 36.dp
+private const val TmdbResultTableMaxVisibleRows = 5
+private val TmdbResultTableDividerHeight = 1.dp
+
+/**
+ * TMDB pick table with a fixed header and a body that shows at most five rows before scrolling.
+ */
+@Composable
+private fun ReviewTmdbResultSelectionSection(
+    results: List<TmdbSearchResult>,
+    selectedResultId: Int?,
+    onSelectResult: (TmdbSearchResult) -> Unit,
+    onOpenTmdb: (String) -> Unit,
+) {
+    val visibleRowCount = minOf(results.size, TmdbResultTableMaxVisibleRows)
+    val scrollableBodyHeight =
+        TmdbResultTableRowHeight * visibleRowCount +
+            TmdbResultTableDividerHeight * visibleRowCount
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Confirm movie selection:",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        TmdbResultTableHeaderRow()
+        HorizontalDivider()
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(scrollableBodyHeight),
+        ) {
+            items(
+                items = results,
+                key = { result -> result.id },
+            ) { result ->
+                TmdbResultTableRow(
+                    result = result,
+                    selected = selectedResultId == result.id,
+                    onSelect = { onSelectResult(result) },
+                    onOpenTmdb = { onOpenTmdb(result.tmdbUrl) },
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
 
 /**
  * Column headers for the TMDB result pick table (Name, Year, Open).
