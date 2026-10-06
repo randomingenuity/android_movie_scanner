@@ -841,7 +841,7 @@ class ReviewViewModel @Inject constructor(
         val barcode = removeNewlinesFromBarcode(capturedBarcode.orEmpty())
         return ReviewUiState(
             featureType = scanSessionHolder.lastReviewFeatureType,
-            discType = null,
+            discType = resolveDefaultReviewDiscType(),
             edition = null,
             location = resolveDefaultReviewLocation(),
             title = title,
@@ -1063,6 +1063,7 @@ class ReviewViewModel @Inject constructor(
             )
         }
         applyBulkBatchLocationPrefill()
+        applyBulkBatchDiscTypePrefill()
     }
 
     private fun resolveDefaultReviewLocation(): String {
@@ -1071,6 +1072,13 @@ class ReviewViewModel @Inject constructor(
         }
 
         return scanSessionHolder.lastReviewLocation
+    }
+
+    private fun resolveDefaultReviewDiscType(): String? {
+        if (!scanSessionHolder.isBulkProcessing) {
+            return null
+        }
+        return scanSessionHolder.bulkBatchDiscType?.takeIf { discType -> discType.isNotBlank() }
     }
 
     /**
@@ -1087,6 +1095,26 @@ class ReviewViewModel @Inject constructor(
         _uiState.update { state ->
             if (state.location.isBlank()) {
                 state.copy(location = batchLocation)
+            } else {
+                state
+            }
+        }
+    }
+
+    /**
+     * Re-applies the bulk batch disc type when duplicate checks leave the field blank.
+     */
+    private fun applyBulkBatchDiscTypePrefill() {
+        if (!scanSessionHolder.isBulkProcessing) {
+            return
+        }
+        val batchDiscType = resolveDefaultReviewDiscType()
+        if (batchDiscType == null) {
+            return
+        }
+        _uiState.update { state ->
+            if (state.discType.isNullOrBlank()) {
+                state.copy(discType = batchDiscType)
             } else {
                 state
             }
@@ -1239,11 +1267,13 @@ class ReviewViewModel @Inject constructor(
         } else {
             ""
         }
+        val batchDiscTypeFallback = resolveDefaultReviewDiscType()
         scanSessionHolder.rememberReviewFeatureType(featureType)
         _uiState.update {
             it.copy(
                 featureType = featureType,
-                discType = existingMovie.discType,
+                discType = existingMovie.discType?.takeIf { discType -> discType.isNotBlank() }
+                    ?: batchDiscTypeFallback,
                 edition = if (featureType == FeatureType.MOVIE) {
                     existingMovie.edition
                 } else {
@@ -1268,7 +1298,7 @@ class ReviewViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 featureType = scanSessionHolder.lastReviewFeatureType,
-                discType = null,
+                discType = resolveDefaultReviewDiscType(),
                 edition = null,
                 location = resolveDefaultReviewLocation(),
                 numberOfDiscsInput = DEFAULT_NUMBER_OF_DISCS,
