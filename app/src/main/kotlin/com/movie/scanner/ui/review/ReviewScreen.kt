@@ -755,7 +755,7 @@ private fun ReviewDiscTypeField(
                     text = if (selectedDiscType != null) {
                         DiscType.labelForStored(selectedDiscType)
                     } else {
-                        "Required"
+                        "Select..."
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
@@ -827,7 +827,7 @@ private fun ReviewEditionField(
                     text = if (selectedEdition != null) {
                         MovieEdition.labelForStored(selectedEdition)
                     } else {
-                        "Required"
+                        "Select..."
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
