@@ -1010,14 +1010,26 @@ class ReviewViewModel @Inject constructor(
             FeatureType.TV -> showForceAdd && willOverwriteTitleAndSeason
             FeatureType.MOVIE -> showForceAdd && willOverwriteTitleAndYear
         }
-        val isAddEnabled =
+        val existingMovieForComparison = resolveExistingMovie(currentState)
+        val formMatchesExistingListEntry =
+            existingMovieForComparison != null &&
+                reviewFormMatchesExistingMovie(
+                    state = currentState,
+                    existingMovie = existingMovieForComparison,
+                    selectedTmdbResult = selectedAfterMetadata,
+                    capturedBarcode = resolveCapturedBarcode(currentState),
+                )
+        val formReadyForAdd =
             yearFilled &&
                 seasonFilledForAdd &&
                 discTypeFilled &&
                 editionFilled &&
                 selectedAfterMetadata != null
+        val isAddEnabled = formReadyForAdd && !formMatchesExistingListEntry
         val addDisabledReason = if (isAddEnabled) {
             null
+        } else if (formReadyForAdd && formMatchesExistingListEntry) {
+            "This entry already matches the list. Change a field or tap Skip to continue."
         } else {
             buildAddDisabledReason(
                 state = currentState,
@@ -1025,11 +1037,12 @@ class ReviewViewModel @Inject constructor(
                 seasonFilled = seasonFilledForAdd,
                 discTypeFilled = discTypeFilled,
                 editionFilled = editionFilled,
-                selected = selected,
+                selected = selectedAfterMetadata,
                 willOverwriteTitleAndSeason = willOverwriteTitleAndSeasonNow,
                 willOverwriteTmdbMatch = willOverwriteTmdbMatchNow,
             )
         }
+        val isForceAddEnabled = showForceAdd && !formMatchesExistingListEntry
         _actionState.update {
             it.copy(
                 isBackEnabled = scanSessionHolder.isBulkProcessing &&
@@ -1038,11 +1051,11 @@ class ReviewViewModel @Inject constructor(
                 showReplaceAdd = showReplaceAdd,
                 showForceAdd = showForceAdd,
                 showForceReplace = showForceReplace,
-                isForceAddEnabled = showForceAdd,
+                isForceAddEnabled = isForceAddEnabled,
                 duplicateMessage = when {
-                    showReplaceAdd && !isAddEnabled ->
+                    showReplaceAdd && !isAddEnabled && !formMatchesExistingListEntry ->
                         "Already in list. Replace will replace the existing entry."
-                    showForceReplace && !showForceAdd ->
+                    showForceReplace && !isForceAddEnabled && !formMatchesExistingListEntry ->
                         "Already in list. Force Replace will replace the existing entry."
                     else -> null
                 },
@@ -1131,6 +1144,65 @@ class ReviewViewModel @Inject constructor(
             return "Select an edition."
         }
         return "Complete the required fields above."
+    }
+
+    /**
+     * True when review fields match the list row that [resolveExistingMovie] would overwrite.
+     */
+    private fun reviewFormMatchesExistingMovie(
+        state: ReviewUiState,
+        existingMovie: MovieEntity,
+        selectedTmdbResult: TmdbSearchResult?,
+        capturedBarcode: String?,
+    ): Boolean {
+        if (state.title.trim() != existingMovie.title) {
+            return false
+        }
+        if (state.year.trim() != existingMovie.year) {
+            return false
+        }
+        if (state.featureType.label != existingMovie.featureType) {
+            return false
+        }
+        val normalizedBarcode = capturedBarcode?.let { barcode -> normalizeReviewBarcode(barcode) }.orEmpty()
+        val normalizedStoredUpc =
+            existingMovie.upc?.let { upc -> normalizeReviewBarcode(upc) }.orEmpty()
+        if (normalizedBarcode != normalizedStoredUpc) {
+            return false
+        }
+        val selectedTmdbId = selectedTmdbResult?.id
+        if (selectedTmdbId != existingMovie.tmdbId) {
+            return false
+        }
+        if (state.discType != existingMovie.discType) {
+            return false
+        }
+        val formEdition = if (state.featureType == FeatureType.MOVIE) {
+            state.edition
+        } else {
+            null
+        }
+        if (formEdition != existingMovie.edition) {
+            return false
+        }
+        val formLocation = state.location.trim().takeIf { location -> location.isNotBlank() }
+        val storedLocation =
+            existingMovie.location?.trim()?.takeIf { location -> location.isNotBlank() }
+        if (formLocation != storedLocation) {
+            return false
+        }
+        val formSeasonNumber = parseEnteredSeasonNumber(state)
+        if (formSeasonNumber != existingMovie.seasonNumber) {
+            return false
+        }
+        val formNumberOfDiscs = clampNumberOfDiscs(state.numberOfDiscsInput)
+        val storedNumberOfDiscs = clampNumberOfDiscs(
+            existingMovie.numberOfDiscs ?: DEFAULT_NUMBER_OF_DISCS,
+        )
+        if (formNumberOfDiscs != storedNumberOfDiscs) {
+            return false
+        }
+        return true
     }
 
     private suspend fun resolveExistingMovie(state: ReviewUiState): MovieEntity? {

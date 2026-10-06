@@ -516,7 +516,41 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun refreshActionState_enablesReplaceWhenExistingMovieMetadataPrefillsEdition() = runTest {
+    fun refreshActionState_disablesReplaceWhenFormMatchesExistingMovieMetadata() = runTest {
+        val existingMovie = MovieEntity(
+            id = 9L,
+            title = "Cover Title",
+            year = "2020",
+            tmdbId = 1,
+            tmdbUrl = "https://www.themoviedb.org/movie/1",
+            posterUrl = null,
+            upc = "9781234567890",
+            isForceAdded = false,
+            sortOrder = 0,
+            featureType = FeatureType.MOVIE.label,
+            discType = "bluray",
+            edition = "theatrical",
+            location = "Shelf A",
+        )
+        coEvery { movieRepository.existsByTmdbId(1) } returns true
+        coEvery { movieRepository.findByTmdbId(1) } returns existingMovie
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("theatrical", viewModel.uiState.value.edition)
+        assertEquals("bluray", viewModel.uiState.value.discType)
+        assertEquals(true, viewModel.actionState.value.showReplaceAdd)
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.duplicateMessage)
+        assertEquals(
+            "This entry already matches the list. Change a field or tap Skip to continue.",
+            viewModel.actionState.value.addDisabledReason,
+        )
+    }
+
+    @Test
+    fun refreshActionState_enablesReplaceWhenExistingMovieEditionChanges() = runTest {
         val existingMovie = MovieEntity(
             id = 9L,
             title = "Cover Title",
@@ -538,11 +572,11 @@ class ReviewViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertEquals("theatrical", viewModel.uiState.value.edition)
-        assertEquals("bluray", viewModel.uiState.value.discType)
+        viewModel.updateEdition("extended")
+        advanceUntilIdle()
+
         assertEquals(true, viewModel.actionState.value.showReplaceAdd)
         assertEquals(true, viewModel.actionState.value.isAddEnabled)
-        assertEquals(null, viewModel.actionState.value.duplicateMessage)
         assertEquals(null, viewModel.actionState.value.addDisabledReason)
     }
 
@@ -594,7 +628,7 @@ class ReviewViewModelTest {
             tmdbId = 1,
             tmdbUrl = "https://www.themoviedb.org/movie/1",
             posterUrl = null,
-            upc = "111111111111",
+            upc = "9781234567890",
             isForceAdded = false,
             sortOrder = 0,
             featureType = FeatureType.TV.label,
@@ -613,8 +647,11 @@ class ReviewViewModelTest {
         advanceUntilIdle()
 
         assertEquals(true, viewModel.actionState.value.showReplaceAdd)
-        assertEquals(true, viewModel.actionState.value.isAddEnabled)
-        assertEquals(null, viewModel.actionState.value.addDisabledReason)
+        assertEquals(false, viewModel.actionState.value.isAddEnabled)
+        assertEquals(
+            "This entry already matches the list. Change a field or tap Skip to continue.",
+            viewModel.actionState.value.addDisabledReason,
+        )
         assertEquals(null, viewModel.actionState.value.duplicateMessage)
     }
 
