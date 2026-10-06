@@ -5,18 +5,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -44,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.focusRequester
@@ -856,6 +864,8 @@ private fun ReviewEditionField(
 private val TmdbResultTableRowHeight = 36.dp
 private const val TmdbResultTableMaxVisibleRows = 5
 private val TmdbResultTableDividerHeight = 1.dp
+private val TmdbResultTableScrollbarWidth = 6.dp
+private val TmdbResultTableScrollbarGutter = 4.dp
 
 /**
  * TMDB pick table with a fixed header and a body that shows at most five rows before scrolling.
@@ -878,23 +888,86 @@ private fun ReviewTmdbResultSelectionSection(
         )
         TmdbResultTableHeaderRow()
         HorizontalDivider()
-        LazyColumn(
+        val listState = rememberLazyListState()
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(scrollableBodyHeight),
         ) {
-            items(
-                items = results,
-                key = { result -> result.id },
-            ) { result ->
-                TmdbResultTableRow(
-                    result = result,
-                    selected = selectedResultId == result.id,
-                    onSelect = { onSelectResult(result) },
-                    onOpenTmdb = { onOpenTmdb(result.tmdbUrl) },
-                )
-                HorizontalDivider()
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = TmdbResultTableScrollbarWidth + TmdbResultTableScrollbarGutter),
+            ) {
+                items(
+                    items = results,
+                    key = { result -> result.id },
+                ) { result ->
+                    TmdbResultTableRow(
+                        result = result,
+                        selected = selectedResultId == result.id,
+                        onSelect = { onSelectResult(result) },
+                        onOpenTmdb = { onOpenTmdb(result.tmdbUrl) },
+                    )
+                    HorizontalDivider()
+                }
             }
+            TmdbResultListVerticalScrollbar(
+                listState = listState,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Always-visible scrollbar thumb for a height-capped TMDB result LazyColumn on Android.
+ */
+@Composable
+private fun TmdbResultListVerticalScrollbar(
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
+    val totalItemsCount = layoutInfo.totalItemsCount
+    val visibleItemsInfo = layoutInfo.visibleItemsInfo
+    if (totalItemsCount == 0 || visibleItemsInfo.isEmpty()) {
+        return
+    }
+    val firstVisibleIndex = visibleItemsInfo.first().index
+    val visibleItemsCount = visibleItemsInfo.size
+    if (visibleItemsCount >= totalItemsCount) {
+        return
+    }
+    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+    val thumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    BoxWithConstraints(
+        modifier = modifier.width(TmdbResultTableScrollbarWidth),
+    ) {
+        val trackHeight = maxHeight
+        val thumbHeight = trackHeight * visibleItemsCount.toFloat() / totalItemsCount
+        val scrollRange = (totalItemsCount - visibleItemsCount).coerceAtLeast(1)
+        val scrollProgress = firstVisibleIndex.toFloat() / scrollRange
+        val thumbOffset = (trackHeight - thumbHeight) * scrollProgress
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(trackHeight)
+                .clip(RoundedCornerShape(3.dp))
+                .background(trackColor),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(thumbHeight)
+                    .offset(y = thumbOffset)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(thumbColor),
+            )
         }
     }
 }
