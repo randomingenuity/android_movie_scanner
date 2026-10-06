@@ -200,6 +200,20 @@ class ScanBulkQueueViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Deletes every bulk queue row and its image files after the user confirms clear.
+     */
+    fun clearAllRecords() {
+        if (_uiState.value.isProcessing) {
+            return
+        }
+        stopActiveProcessing()
+        bulkQueueSessionState.resetForNewProcessingRun()
+        viewModelScope.launch {
+            bulkImageRepository.deleteAllRecords()
+        }
+    }
+
     private fun stopActiveProcessing() {
         bulkQueueSessionState.shouldContinueProcessing = false
         bulkReviewPreloadService.clearPreload()

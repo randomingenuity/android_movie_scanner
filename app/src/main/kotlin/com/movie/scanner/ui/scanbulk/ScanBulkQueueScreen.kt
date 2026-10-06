@@ -28,10 +28,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -84,6 +87,35 @@ fun ScanBulkQueueScreen(
         records.any { row -> row.status != BulkQueueItemStatus.PROCESSED }
     }
     val showInitialLoading = uiState.isLoadingRecords && records.isEmpty()
+    var showClearQueueDialog by remember { mutableStateOf(false) }
+
+    if (showClearQueueDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearQueueDialog = false },
+            title = { Text("Clear queue?") },
+            text = {
+                Text(
+                    "Remove all ${records.size} items from the bulk queue? " +
+                        "This cannot be undone.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearAllRecords()
+                        showClearQueueDialog = false
+                    },
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearQueueDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 
     BackHandler(enabled = bulkDefaultsPromptUiState.showBulkDefaultsPrompt) {
         scanBulkNavigationViewModel.dismissBulkDefaultsPrompt()
@@ -193,12 +225,15 @@ fun ScanBulkQueueScreen(
                 isProcessing = uiState.isProcessing,
                 processingRecordId = uiState.processingRecordId,
                 hasUnprocessedRecords = hasUnprocessedRecords,
+                showExit = hasUnprocessedRecords || records.isEmpty(),
+                hasRecords = records.isNotEmpty(),
                 onStartProcessing = viewModel::startProcessing,
                 onScan = {
                     viewModel.prepareForBulkCapture()
                     onNavigateToCapture()
                 },
                 onExit = viewModel::exitToScan,
+                onClear = { showClearQueueDialog = true },
             )
         }
     }
@@ -242,9 +277,12 @@ private fun BulkQueueFooter(
     isProcessing: Boolean,
     processingRecordId: Long?,
     hasUnprocessedRecords: Boolean,
+    showExit: Boolean,
+    hasRecords: Boolean,
     onStartProcessing: () -> Unit,
     onScan: () -> Unit,
     onExit: () -> Unit,
+    onClear: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -276,7 +314,7 @@ private fun BulkQueueFooter(
                 Button(onClick = onScan) {
                     Text("Scan")
                 }
-                if (hasUnprocessedRecords) {
+                if (showExit) {
                     Button(
                         onClick = onExit,
                         colors = ButtonDefaults.buttonColors(
@@ -284,6 +322,11 @@ private fun BulkQueueFooter(
                         ),
                     ) {
                         Text("Exit")
+                    }
+                }
+                if (hasRecords) {
+                    Button(onClick = onClear) {
+                        Text("Clear")
                     }
                 }
             }

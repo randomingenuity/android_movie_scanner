@@ -95,4 +95,7 @@ interface BulkUnprocessedImageDao {
 
     @Query("DELETE FROM images_bulk_unprocessed WHERE was_processed = 1")
     suspend fun deleteAllProcessed()
+
+    @Query("DELETE FROM images_bulk_unprocessed")
+    suspend fun deleteAll()
 }

@@ -68,6 +68,18 @@ class BulkImageRepository @Inject constructor(
     }
 
     /**
+     * Removes every queue row and deletes its barcode/cover image files from disk.
+     */
+    suspend fun deleteAllRecords() = withContext(Dispatchers.IO) {
+        val workingDirectory = resolveWorkingDirectory()
+        val allRecords = bulkUnprocessedImageDao.listAllOrderedById()
+        for (record in allRecords) {
+            deleteRecordFiles(record, workingDirectory)
+        }
+        bulkUnprocessedImageDao.deleteAll()
+    }
+
+    /**
      * Persists a barcode/cover pair on a background thread without blocking the caller.
      */
     fun enqueueCapturedPair(

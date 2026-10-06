@@ -258,4 +258,15 @@ class ScanBulkQueueViewModelTest {
 
         coVerify { bulkImageRepository.deleteProcessedRecords() }
     }
+
+    @Test
+    fun clearAllRecords_deletesEveryRowThroughRepository() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.clearAllRecords()
+        advanceUntilIdle()
+
+        coVerify { bulkImageRepository.deleteAllRecords() }
+    }
 }
