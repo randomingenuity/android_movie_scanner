@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -75,8 +76,14 @@ fun ScanBulkQueueScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val bulkDefaultsPromptUiState by scanBulkNavigationViewModel.bulkDefaultsPromptUiState
         .collectAsStateWithLifecycle()
-    val hasDoneRecords = uiState.records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
-    val showInitialLoading = uiState.isLoadingRecords && uiState.records.isEmpty()
+    val records = uiState.records
+    val hasDoneRecords = remember(records) {
+        records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
+    }
+    val hasUnprocessedRecords = remember(records) {
+        records.any { row -> row.status != BulkQueueItemStatus.PROCESSED }
+    }
+    val showInitialLoading = uiState.isLoadingRecords && records.isEmpty()
 
     BackHandler(enabled = bulkDefaultsPromptUiState.showBulkDefaultsPrompt) {
         scanBulkNavigationViewModel.dismissBulkDefaultsPrompt()
@@ -172,70 +179,111 @@ fun ScanBulkQueueScreen(
             }
             BulkQueueHeaderRow()
             HorizontalDivider()
-            LazyColumn(
+            BulkQueueRecordsList(
+                records = records,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-            ) {
-                items(uiState.records, key = { row -> row.id }) { row ->
-                    BulkQueueDataRow(
-                        row = row,
-                        onBarcodeClick = { viewModel.showImagePreview(row.barcodeRelFilepath) },
-                        onCoverClick = { viewModel.showImagePreview(row.coverRelFilepath) },
-                        onRescanClick = { viewModel.requestRescan(row.id) },
-                        onDeleteClick = { viewModel.deleteRecord(row.id) },
-                    )
-                    HorizontalDivider()
-                }
+                onBarcodeClick = viewModel::showImagePreview,
+                onCoverClick = viewModel::showImagePreview,
+                onRescanClick = viewModel::requestRescan,
+                onDeleteClick = viewModel::deleteRecord,
+            )
+            BulkQueueFooter(
+                isProcessing = uiState.isProcessing,
+                processingRecordId = uiState.processingRecordId,
+                hasUnprocessedRecords = hasUnprocessedRecords,
+                onStartProcessing = viewModel::startProcessing,
+                onScan = {
+                    viewModel.prepareForBulkCapture()
+                    onNavigateToCapture()
+                },
+                onExit = viewModel::exitToScan,
+            )
+        }
+    }
+}
+
+/**
+ * Scrollable bulk queue rows; isolated so processing footer updates do not recompose the list.
+ */
+@Composable
+private fun BulkQueueRecordsList(
+    records: List<ScanBulkQueueRow>,
+    modifier: Modifier = Modifier,
+    onBarcodeClick: (String) -> Unit,
+    onCoverClick: (String) -> Unit,
+    onRescanClick: (Long) -> Unit,
+    onDeleteClick: (Long) -> Unit,
+) {
+    LazyColumn(modifier = modifier) {
+        items(
+            items = records,
+            key = { row -> row.id },
+            contentType = { _ -> "bulk_queue_row" },
+        ) { row ->
+            BulkQueueDataRow(
+                row = row,
+                onBarcodeClick = { onBarcodeClick(row.barcodeRelFilepath) },
+                onCoverClick = { onCoverClick(row.coverRelFilepath) },
+                onRescanClick = { onRescanClick(row.id) },
+                onDeleteClick = { onDeleteClick(row.id) },
+            )
+            HorizontalDivider()
+        }
+    }
+}
+
+/**
+ * Process / Scan / Exit controls and the in-flight processing indicator.
+ */
+@Composable
+private fun BulkQueueFooter(
+    isProcessing: Boolean,
+    processingRecordId: Long?,
+    hasUnprocessedRecords: Boolean,
+    onStartProcessing: () -> Unit,
+    onScan: () -> Unit,
+    onExit: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isProcessing) {
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(56.dp),
+                    strokeWidth = 4.dp,
+                )
+                Text(
+                    text = processingRecordId?.toString().orEmpty(),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(72.dp),
-                contentAlignment = Alignment.Center,
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (uiState.isProcessing) {
-                    Box(contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(56.dp),
-                            strokeWidth = 4.dp,
-                        )
-                        Text(
-                            text = uiState.processingRecordId?.toString().orEmpty(),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
+                if (hasUnprocessedRecords) {
+                    Button(onClick = onStartProcessing) {
+                        Text("Process")
                     }
-                } else {
-                    val hasUnprocessed = uiState.records.any { row ->
-                        row.status != BulkQueueItemStatus.PROCESSED
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                }
+                Button(onClick = onScan) {
+                    Text("Scan")
+                }
+                if (hasUnprocessedRecords) {
+                    Button(
+                        onClick = onExit,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
                     ) {
-                        if (hasUnprocessed) {
-                            Button(onClick = viewModel::startProcessing) {
-                                Text("Process")
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                viewModel.prepareForBulkCapture()
-                                onNavigateToCapture()
-                            },
-                        ) {
-                            Text("Scan")
-                        }
-                        if (hasUnprocessed) {
-                            Button(
-                                onClick = viewModel::exitToScan,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                ),
-                            ) {
-                                Text("Exit")
-                            }
-                        }
+                        Text("Exit")
                     }
                 }
             }

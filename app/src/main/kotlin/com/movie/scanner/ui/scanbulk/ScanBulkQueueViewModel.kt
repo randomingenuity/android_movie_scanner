@@ -10,15 +10,19 @@ import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.BulkProcessingResultsJson
+import com.movie.scanner.di.DefaultDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
@@ -63,6 +67,7 @@ class ScanBulkQueueViewModel @Inject constructor(
     private val scanSessionHolder: ScanSessionHolder,
     private val bulkQueueSessionState: BulkQueueSessionState,
     private val bulkReviewPreloadService: BulkReviewPreloadService,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScanBulkQueueUiState())
     val uiState: StateFlow<ScanBulkQueueUiState> = _uiState.asStateFlow()
@@ -76,20 +81,25 @@ class ScanBulkQueueViewModel @Inject constructor(
                 bulkImageRepository.observeAllRecords(),
                 bulkRecognitionProcessor.recognizingRecordIds,
             ) { records, recognizingRecordIds ->
-                records.map { record ->
-                    buildQueueRow(
-                        record = record,
-                        recognizingRecordIds = recognizingRecordIds,
-                    )
-                }
-            }.collect { rows ->
-                _uiState.update { state ->
-                    state.copy(
-                        records = rows,
-                        isLoadingRecords = false,
-                    )
-                }
+                records to recognizingRecordIds
             }
+                .distinctUntilChanged()
+                .collect { (records, recognizingRecordIds) ->
+                    val rows = withContext(defaultDispatcher) {
+                        records.map { record ->
+                            buildQueueRow(
+                                record = record,
+                                recognizingRecordIds = recognizingRecordIds,
+                            )
+                        }
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            records = rows,
+                            isLoadingRecords = false,
+                        )
+                    }
+                }
         }
     }
 
@@ -290,13 +300,14 @@ class ScanBulkQueueViewModel @Inject constructor(
         recognizingRecordIds: Set<Long>,
     ): ScanBulkQueueRow {
         val processingResultsJson = record.processingResultsJson
-        val showBarcodeResultIcon = if (processingResultsJson.isNullOrBlank()) {
-            false
+        val parsedResults = if (processingResultsJson.isNullOrBlank()) {
+            null
         } else {
-            BulkProcessingResultsJson.hasBarcodeResult(
-                BulkProcessingResultsJson.parse(processingResultsJson),
-            )
+            BulkProcessingResultsJson.parse(processingResultsJson)
         }
+        val showBarcodeResultIcon = parsedResults?.let { results ->
+            BulkProcessingResultsJson.hasBarcodeResult(results)
+        } ?: false
         val status = resolveItemStatus(
             record = record,
             recognizingRecordIds = recognizingRecordIds,

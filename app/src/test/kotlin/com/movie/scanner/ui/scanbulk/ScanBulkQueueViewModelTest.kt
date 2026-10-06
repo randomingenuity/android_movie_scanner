@@ -56,15 +56,19 @@ class ScanBulkQueueViewModelTest {
         Dispatchers.resetMain()
     }
 
-    @Test
-    fun init_clearsLoadingAfterFirstRecordsEmission() = runTest {
-        val viewModel = ScanBulkQueueViewModel(
+    private fun createViewModel(): ScanBulkQueueViewModel =
+        ScanBulkQueueViewModel(
             bulkImageRepository = bulkImageRepository,
             bulkRecognitionProcessor = bulkRecognitionProcessor,
             scanSessionHolder = scanSessionHolder,
             bulkQueueSessionState = bulkQueueSessionState,
             bulkReviewPreloadService = bulkReviewPreloadService,
+            defaultDispatcher = testDispatcher,
         )
+
+    @Test
+    fun init_clearsLoadingAfterFirstRecordsEmission() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
 
         assertTrue(viewModel.uiState.value.isLoadingRecords)
 
@@ -75,7 +79,7 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun init_mapsBarcodeOnlyRecognitionToQueueRowFlag() = runTest {
+    fun init_mapsBarcodeOnlyRecognitionToQueueRowFlag() = runTest(testDispatcher) {
         val barcodeOnlyResultsJson = BulkProcessingResultsJson.encode(
             BulkProcessingResults(
                 barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
@@ -100,13 +104,7 @@ class ScanBulkQueueViewModelTest {
         )
         every { bulkImageRepository.observeAllRecords() } returns flowOf(listOf(record))
 
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         val row = viewModel.uiState.value.records.single()
@@ -116,7 +114,7 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun init_mapsCoverRecognitionToRescanIconWhenBarcodeLookupDidNotFinish() = runTest {
+    fun init_mapsCoverRecognitionToRescanIconWhenBarcodeLookupDidNotFinish() = runTest(testDispatcher) {
         val coverResultsJson = BulkProcessingResultsJson.encode(
             BulkProcessingResults(
                 coverGuess = MovieGuess(title = "Arrival", year = "2016"),
@@ -142,13 +140,7 @@ class ScanBulkQueueViewModelTest {
         )
         every { bulkImageRepository.observeAllRecords() } returns flowOf(listOf(record))
 
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         val row = viewModel.uiState.value.records.single()
@@ -157,14 +149,8 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun requestRescan_startsQueueRescanAndNavigatesToCapture() = runTest {
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+    fun requestRescan_startsQueueRescanAndNavigatesToCapture() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
         val navigationEvents = mutableListOf<ScanBulkQueueEvent>()
         val collectorJob = launch {
             viewModel.navigationEventFlow.collect { event ->
@@ -188,7 +174,7 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun resumeProcessingIfNeeded_afterSkip_opensNextQueueItem() = runTest {
+    fun resumeProcessingIfNeeded_afterSkip_opensNextQueueItem() = runTest(testDispatcher) {
         val firstRecord = BulkUnprocessedImageEntity(
             id = 1L,
             createdAtTimestamp = 100L,
@@ -208,13 +194,7 @@ class ScanBulkQueueViewModelTest {
         coEvery { bulkReviewPreloadService.findNextReviewableRecord(afterRecordId = 1L) } returns secondRecord
         every { bulkReviewPreloadService.takePreloadedReview() } returns null
 
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+        val viewModel = createViewModel()
         val navigationEvents = mutableListOf<ScanBulkQueueEvent>()
         val collectorJob = launch {
             viewModel.navigationEventFlow.collect { event ->
@@ -258,14 +238,8 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun deleteRecord_deletesQueueRowThroughRepository() = runTest {
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+    fun deleteRecord_deletesQueueRowThroughRepository() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.deleteRecord(9L)
@@ -275,14 +249,8 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun clearDoneRecords_deletesProcessedRowsThroughRepository() = runTest {
-        val viewModel = ScanBulkQueueViewModel(
-            bulkImageRepository = bulkImageRepository,
-            bulkRecognitionProcessor = bulkRecognitionProcessor,
-            scanSessionHolder = scanSessionHolder,
-            bulkQueueSessionState = bulkQueueSessionState,
-            bulkReviewPreloadService = bulkReviewPreloadService,
-        )
+    fun clearDoneRecords_deletesProcessedRowsThroughRepository() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.clearDoneRecords()
