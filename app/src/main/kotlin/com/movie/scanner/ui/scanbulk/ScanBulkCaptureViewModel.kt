@@ -61,6 +61,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
     val navigationEventFlow = navigationEvents.receiveAsFlow()
     private var barcodeScanner: BarcodeScanner? = null
     private var pendingBarcodeBitmap: Bitmap? = null
+    private var barcodeSkippedForCurrentPair = false
     private var rescanRecordId: Long? = null
     private var rescanCompletionInProgress = false
 
@@ -82,6 +83,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             }
         }
         pendingBarcodeBitmap = null
+        barcodeSkippedForCurrentPair = false
         rescanRecordId = scanSessionHolder.resolveBulkRescanRecordId()
         val isRescanMode = rescanRecordId != null
         _uiState.value = ScanBulkCaptureUiState(
@@ -151,6 +153,34 @@ class ScanBulkCaptureViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Skips the barcode photo for the current pair and moves to cover capture.
+     */
+    fun skipBarcode() {
+        if (_uiState.value.captureMode != ScanCaptureMode.BARCODE) {
+            return
+        }
+        pendingBarcodeBitmap?.let { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        pendingBarcodeBitmap = null
+        barcodeSkippedForCurrentPair = true
+        val isRescanMode = _uiState.value.isRescanMode
+        _uiState.update {
+            it.copy(
+                captureMode = ScanCaptureMode.COVER,
+                statusMessage = if (isRescanMode) {
+                    "Rescan the cover"
+                } else {
+                    "Capture the cover photo"
+                },
+                captureErrorMessage = null,
+            )
+        }
+    }
+
     fun processCapturedImage(bitmap: Bitmap) {
         _uiState.update {
             it.copy(
@@ -179,6 +209,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             }
         }
         pendingBarcodeBitmap = bitmap
+        barcodeSkippedForCurrentPair = false
         val isRescanMode = _uiState.value.isRescanMode
         _uiState.update {
             it.copy(
@@ -196,7 +227,8 @@ class ScanBulkCaptureViewModel @Inject constructor(
 
     private fun onCoverCaptured(bitmap: Bitmap) {
         val barcodeBitmap = pendingBarcodeBitmap
-        if (barcodeBitmap == null) {
+        val barcodeSkipped = barcodeSkippedForCurrentPair
+        if (barcodeBitmap == null && !barcodeSkipped) {
             if (!bitmap.isRecycled) {
                 bitmap.recycle()
             }
@@ -215,6 +247,7 @@ class ScanBulkCaptureViewModel @Inject constructor(
             return
         }
         pendingBarcodeBitmap = null
+        barcodeSkippedForCurrentPair = false
         if (_uiState.value.isRescanMode) {
             completeRescanCapture(
                 barcodeBitmap = barcodeBitmap,
@@ -278,13 +311,15 @@ class ScanBulkCaptureViewModel @Inject constructor(
     }
 
     private fun completeRescanCapture(
-        barcodeBitmap: Bitmap,
+        barcodeBitmap: Bitmap?,
         coverBitmap: Bitmap,
     ) {
         val recordId = rescanRecordId
         if (recordId == null) {
-            if (!barcodeBitmap.isRecycled) {
-                barcodeBitmap.recycle()
+            barcodeBitmap?.let { bitmap ->
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
             }
             if (!coverBitmap.isRecycled) {
                 coverBitmap.recycle()
@@ -339,26 +374,29 @@ class ScanBulkCaptureViewModel @Inject constructor(
         barcodeRelativeFilepath: String,
         coverRelativeFilepath: String,
     ) {
-        val barcodeBitmap = bulkImageRepository.loadBitmap(barcodeRelativeFilepath)
         val coverBitmap = bulkImageRepository.loadBitmap(coverRelativeFilepath)
-        if (barcodeBitmap == null || coverBitmap == null) {
-            throw IllegalStateException("Rescanned images could not be loaded.")
-        }
+            ?: throw IllegalStateException("Rescanned images could not be loaded.")
         scanSessionHolder.startNewScan()
         scanSessionHolder.startBulkItem(
             recordId = recordId,
             coverRelFilepath = coverRelativeFilepath,
         )
-        val decodedBarcode = withContext(Dispatchers.Default) {
-            BarcodeDecoder.decodeFromBitmap(
-                bitmap = barcodeBitmap,
-                barcodeScanner = resolveBarcodeScanner(),
-            )
-        }
-        if (!decodedBarcode.isNullOrBlank()) {
-            scanSessionHolder.recordBarcodeCapture(decodedBarcode, barcodeBitmap)
+        if (barcodeRelativeFilepath.isBlank()) {
+            scanSessionHolder.skipBarcode()
         } else {
-            scanSessionHolder.recordBarcodeCaptureForBulk(barcodeBitmap)
+            val barcodeBitmap = bulkImageRepository.loadBitmap(barcodeRelativeFilepath)
+                ?: throw IllegalStateException("Rescanned images could not be loaded.")
+            val decodedBarcode = withContext(Dispatchers.Default) {
+                BarcodeDecoder.decodeFromBitmap(
+                    bitmap = barcodeBitmap,
+                    barcodeScanner = resolveBarcodeScanner(),
+                )
+            }
+            if (!decodedBarcode.isNullOrBlank()) {
+                scanSessionHolder.recordBarcodeCapture(decodedBarcode, barcodeBitmap)
+            } else {
+                scanSessionHolder.recordBarcodeCaptureForBulk(barcodeBitmap)
+            }
         }
         scanSessionHolder.recordCoverCapture(coverBitmap)
     }

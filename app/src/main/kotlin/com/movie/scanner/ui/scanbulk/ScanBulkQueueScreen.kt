@@ -520,18 +520,26 @@ private fun BulkQueueDataRow(
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
-            text = "Barcode",
+            text = if (row.hasBarcodeImage) {
+                "Barcode"
+            } else {
+                "—"
+            },
             modifier = Modifier
                 .weight(1f)
                 .then(dimRowContent)
                 .then(
-                    if (row.isBarcodeAlreadyInList) {
+                    if (row.isBarcodeAlreadyInList || !row.hasBarcodeImage) {
                         Modifier
                     } else {
                         Modifier.clickable(onClick = onBarcodeClick)
                     },
                 ),
-            color = linkColor,
+            color = if (row.hasBarcodeImage) {
+                linkColor
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(

@@ -13,6 +13,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkObject
+import io.mockk.coVerify
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,6 +61,35 @@ class ScanBulkCaptureViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkObject(BarcodeDecoder)
+    }
+
+    @Test
+    fun skipBarcode_movesToCoverMode() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+        viewModel.skipBarcode()
+
+        assertEquals(ScanCaptureMode.COVER, viewModel.uiState.value.captureMode)
+        assertEquals("Capture the cover photo", viewModel.uiState.value.statusMessage)
+    }
+
+    @Test
+    fun processCapturedImage_afterSkipBarcode_enqueuesCoverOnly() = runTest {
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+        viewModel.skipBarcode()
+        advanceUntilIdle()
+
+        viewModel.processCapturedImage(coverBitmap)
+        advanceUntilIdle()
+
+        verify {
+            bulkImageRepository.enqueueCapturedPair(
+                barcodeBitmap = null,
+                coverBitmap = coverBitmap,
+                onFailure = any(),
+            )
+        }
     }
 
     @Test
@@ -228,6 +258,39 @@ class ScanBulkCaptureViewModelTest {
 
         assertFalse(viewModel.uiState.value.isCapturing)
         assertFalse(viewModel.uiState.value.isProcessingCapture)
+    }
+
+    @Test
+    fun processCapturedImage_rescanAfterSkip_replacesCoverOnly() = runBlocking {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        every { scanSessionHolder.resolveBulkRescanRecordId() } returns 42L
+        every { scanSessionHolder.shouldReturnToQueueAfterBulkRescan() } returns true
+        coEvery {
+            bulkImageRepository.replaceCapturedPair(
+                recordId = 42L,
+                barcodeBitmap = null,
+                coverBitmap = coverBitmap,
+            )
+        } returns BulkUnprocessedImageEntity(
+            id = 42L,
+            createdAtTimestamp = 1L,
+            barcodeRelFilepath = BulkUnprocessedImageEntity.NO_BARCODE_REL_FILEPATH,
+            coverRelFilepath = "cover_new.jpg",
+        )
+
+        val viewModel = ScanBulkCaptureViewModel(apiKeyStore, bulkImageRepository, scanSessionHolder)
+        viewModel.prepareScreen()
+        viewModel.skipBarcode()
+        viewModel.processCapturedImage(coverBitmap)
+        delay(50)
+
+        coVerify {
+            bulkImageRepository.replaceCapturedPair(
+                recordId = 42L,
+                barcodeBitmap = null,
+                coverBitmap = coverBitmap,
+            )
+        }
     }
 
     @Test

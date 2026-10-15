@@ -6,6 +6,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Stores a barcode/cover image pair captured during bulk scanning before TMDB review.
+ * When the operator skipped the barcode step, [barcodeRelFilepath] is [NO_BARCODE_REL_FILEPATH].
  */
 @Entity(tableName = "images_bulk_unprocessed")
 data class BulkUnprocessedImageEntity(
@@ -20,4 +21,9 @@ data class BulkUnprocessedImageEntity(
     val wasProcessed: Boolean = false,
     @ColumnInfo(name = "processing_results_json")
     val processingResultsJson: String? = null,
-)
+) {
+    companion object {
+        /** Sentinel stored in [barcodeRelFilepath] when no barcode image was captured. */
+        const val NO_BARCODE_REL_FILEPATH: String = ""
+    }
+}

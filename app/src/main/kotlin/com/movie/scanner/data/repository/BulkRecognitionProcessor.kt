@@ -116,10 +116,14 @@ class BulkRecognitionProcessor @Inject constructor(
         if (!networkConnectivityChecker.isConnected()) {
             return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
         }
-        val barcodeBitmap = bulkImageRepository.loadBitmap(record.barcodeRelFilepath)
         val coverBitmap = bulkImageRepository.loadBitmap(record.coverRelFilepath)
-        if (barcodeBitmap == null || coverBitmap == null) {
+        if (coverBitmap == null) {
             return BulkProcessingResults(recognitionError = "Saved images could not be loaded.")
+        }
+        val barcodeBitmap = if (record.barcodeRelFilepath.isNotBlank()) {
+            bulkImageRepository.loadBitmap(record.barcodeRelFilepath)
+        } else {
+            null
         }
         return try {
             recognizeLoadedPair(
@@ -127,8 +131,10 @@ class BulkRecognitionProcessor @Inject constructor(
                 coverBitmap = coverBitmap,
             )
         } finally {
-            if (!barcodeBitmap.isRecycled) {
-                barcodeBitmap.recycle()
+            barcodeBitmap?.let { bitmap ->
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
             }
             if (!coverBitmap.isRecycled) {
                 coverBitmap.recycle()
@@ -137,11 +143,15 @@ class BulkRecognitionProcessor @Inject constructor(
     }
 
     private suspend fun recognizeLoadedPair(
-        barcodeBitmap: Bitmap,
+        barcodeBitmap: Bitmap?,
         coverBitmap: Bitmap,
     ): BulkProcessingResults {
-        val decodedBarcode = withContext(Dispatchers.Default) {
-            BarcodeDecoder.decodeFromBitmap(barcodeBitmap, barcodeScanner)
+        val decodedBarcode = if (barcodeBitmap != null) {
+            withContext(Dispatchers.Default) {
+                BarcodeDecoder.decodeFromBitmap(barcodeBitmap, barcodeScanner)
+            }
+        } else {
+            null
         }
         var coverGuess: MovieGuess? = null
         var barcodeGuess: MovieGuess? = null
@@ -156,7 +166,7 @@ class BulkRecognitionProcessor @Inject constructor(
         } else if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
             return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
         }
-        if (!capturedUpc.isNullOrBlank()) {
+        if (!capturedUpc.isNullOrBlank() && barcodeBitmap != null) {
             when (val barcodeOutcome = tryFinishFromBarcode(capturedUpc, barcodeBitmap)) {
                 BarcodeRecognitionResult.Offline ->
                     return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
@@ -184,7 +194,7 @@ class BulkRecognitionProcessor @Inject constructor(
                 recognitionError = message,
             )
         }
-        if (!barcodeLookupAttempted && !capturedUpc.isNullOrBlank()) {
+        if (!barcodeLookupAttempted && !capturedUpc.isNullOrBlank() && barcodeBitmap != null) {
             barcodeGuess = llmRecognitionRepository.recognizeBarcode(capturedUpc, barcodeBitmap).getOrNull()
         }
         val title = coverGuess?.title?.takeIf { value -> value.isNotBlank() }

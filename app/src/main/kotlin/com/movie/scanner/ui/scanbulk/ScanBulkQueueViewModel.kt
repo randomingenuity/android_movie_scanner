@@ -48,6 +48,7 @@ data class ScanBulkQueueRow(
     val id: Long,
     val timestampLabel: String,
     val barcodeRelFilepath: String,
+    val hasBarcodeImage: Boolean,
     val coverRelFilepath: String,
     val status: BulkQueueItemStatus,
     val showBarcodeResultIcon: Boolean,
@@ -159,6 +160,9 @@ class ScanBulkQueueViewModel @Inject constructor(
     }
 
     fun showImagePreview(relativeFilepath: String) {
+        if (relativeFilepath.isBlank()) {
+            return
+        }
         _uiState.update { it.copy(previewImagePath = relativeFilepath) }
     }
 
@@ -359,6 +363,7 @@ class ScanBulkQueueViewModel @Inject constructor(
             id = record.id,
             timestampLabel = timestampFormatter.format(Date(record.createdAtTimestamp)),
             barcodeRelFilepath = record.barcodeRelFilepath,
+            hasBarcodeImage = record.barcodeRelFilepath.isNotBlank(),
             coverRelFilepath = record.coverRelFilepath,
             status = status,
             showBarcodeResultIcon = showBarcodeResultIcon,

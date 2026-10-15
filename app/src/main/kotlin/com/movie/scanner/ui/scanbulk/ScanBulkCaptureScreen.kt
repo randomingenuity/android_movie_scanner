@@ -279,14 +279,25 @@ fun ScanBulkCaptureScreen(
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 24.dp, vertical = 32.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+                            Button(onClick = viewModel::skipBarcode) {
+                                Text("Skip")
+                            }
+                        }
+                    }
                     ShutterButton(
                         onClick = {
                             viewModel.beginCaptureProcessing()
                             captureAction.value?.invoke()
                         },
                     )
+                    Box(modifier = Modifier.weight(1f))
                 }
             }
             CaptureProgressOverlay(

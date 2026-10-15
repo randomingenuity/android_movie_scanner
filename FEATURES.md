@@ -11,7 +11,7 @@
 ## Scan Bulk
 
 - **Scan Bulk** tab: opens the bulk queue when unprocessed pairs remain from an earlier session; otherwise opens bulk capture. On first bulk entry each session (queue or capture), if batch disc type or location is unset, a prompt offers to set them before continuing.
-- Header shows **Barcode N** / **Cover N** for the current pair.
+- Header shows **Barcode N** / **Cover N** for the current pair. On the barcode step, **Skip** (same as the main Scan tab) goes straight to cover capture; cover-only rows store no barcode image (queue shows **—** instead of a barcode preview) and background recognition uses the cover photo and TMDB only. **Skip** is also available when rescanning a pair to replace only the cover.
 - **Done** (top right) is always available to open the bulk queue, including items from earlier sessions.
 - **Main Feature Disc Type** (left of Location when no batch disc type is set) opens a picker with the same options as the review form; once saved, the disc type appears as a clickable link and pre-fills the Main Feature Disc Type field on each review form during bulk processing.
 - **Location** (beside Done when no batch location is set) opens a prompt to name the shelf or bin for this batch; once saved, the location name appears as a clickable link in place of the button and pre-fills the Location field on each review form during bulk processing.

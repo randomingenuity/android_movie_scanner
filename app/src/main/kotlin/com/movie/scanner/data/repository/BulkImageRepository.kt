@@ -83,7 +83,7 @@ class BulkImageRepository @Inject constructor(
      * Persists a barcode/cover pair on a background thread without blocking the caller.
      */
     fun enqueueCapturedPair(
-        barcodeBitmap: Bitmap,
+        barcodeBitmap: Bitmap?,
         coverBitmap: Bitmap,
         onFailure: ((String) -> Unit)? = null,
     ) {
@@ -113,20 +113,29 @@ class BulkImageRepository @Inject constructor(
      */
     suspend fun replaceCapturedPair(
         recordId: Long,
-        barcodeBitmap: Bitmap,
+        barcodeBitmap: Bitmap?,
         coverBitmap: Bitmap,
     ): BulkUnprocessedImageEntity = withContext(Dispatchers.IO) {
         val existingRecord = bulkUnprocessedImageDao.getById(recordId)
             ?: throw IllegalArgumentException("Bulk record $recordId was not found.")
         val workingDirectory = resolveWorkingDirectory()
-        deleteRecordFiles(existingRecord, workingDirectory)
         val captureTimestamp = System.currentTimeMillis()
-        val barcodeRelativePath = "barcode_$captureTimestamp.jpg"
         val coverRelativePath = "cover_$captureTimestamp.jpg"
-        writeBitmap(
-            destinationFile = File(workingDirectory, barcodeRelativePath),
-            bitmap = barcodeBitmap,
-        )
+        val barcodeRelativePath: String
+        if (barcodeBitmap != null) {
+            deleteRecordFiles(existingRecord, workingDirectory)
+            barcodeRelativePath = "barcode_$captureTimestamp.jpg"
+            writeBitmap(
+                destinationFile = File(workingDirectory, barcodeRelativePath),
+                bitmap = barcodeBitmap,
+            )
+            if (!barcodeBitmap.isRecycled) {
+                barcodeBitmap.recycle()
+            }
+        } else {
+            File(workingDirectory, existingRecord.coverRelFilepath).delete()
+            barcodeRelativePath = existingRecord.barcodeRelFilepath
+        }
         writeBitmap(
             destinationFile = File(workingDirectory, coverRelativePath),
             bitmap = coverBitmap,
@@ -137,9 +146,6 @@ class BulkImageRepository @Inject constructor(
             coverRelFilepath = coverRelativePath,
             createdAtTimestamp = captureTimestamp,
         )
-        if (!barcodeBitmap.isRecycled) {
-            barcodeBitmap.recycle()
-        }
         if (!coverBitmap.isRecycled) {
             coverBitmap.recycle()
         }
@@ -150,24 +156,30 @@ class BulkImageRepository @Inject constructor(
     }
 
     suspend fun saveCapturedPair(
-        barcodeBitmap: Bitmap,
+        barcodeBitmap: Bitmap?,
         coverBitmap: Bitmap,
     ): Long = withContext(Dispatchers.IO) {
         val workingDirectory = resolveWorkingDirectory()
         val captureTimestamp = System.currentTimeMillis()
-        val barcodeRelativePath = "barcode_$captureTimestamp.jpg"
+        val barcodeRelativePath = if (barcodeBitmap != null) {
+            "barcode_$captureTimestamp.jpg"
+        } else {
+            BulkUnprocessedImageEntity.NO_BARCODE_REL_FILEPATH
+        }
         val coverRelativePath = "cover_$captureTimestamp.jpg"
-        writeBitmap(
-            destinationFile = File(workingDirectory, barcodeRelativePath),
-            bitmap = barcodeBitmap,
-        )
+        if (barcodeBitmap != null) {
+            writeBitmap(
+                destinationFile = File(workingDirectory, barcodeRelativePath),
+                bitmap = barcodeBitmap,
+            )
+            if (!barcodeBitmap.isRecycled) {
+                barcodeBitmap.recycle()
+            }
+        }
         writeBitmap(
             destinationFile = File(workingDirectory, coverRelativePath),
             bitmap = coverBitmap,
         )
-        if (!barcodeBitmap.isRecycled) {
-            barcodeBitmap.recycle()
-        }
         if (!coverBitmap.isRecycled) {
             coverBitmap.recycle()
         }
@@ -181,6 +193,9 @@ class BulkImageRepository @Inject constructor(
     }
 
     suspend fun loadBitmap(relativeFilepath: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (relativeFilepath.isBlank()) {
+            return@withContext null
+        }
         val imageFile = File(resolveWorkingDirectory(), relativeFilepath)
         if (!imageFile.isFile) {
             return@withContext null
@@ -205,7 +220,9 @@ class BulkImageRepository @Inject constructor(
     }
 
     private fun deleteRecordFiles(record: BulkUnprocessedImageEntity, workingDirectory: File) {
-        File(workingDirectory, record.barcodeRelFilepath).delete()
+        if (record.barcodeRelFilepath.isNotBlank()) {
+            File(workingDirectory, record.barcodeRelFilepath).delete()
+        }
         File(workingDirectory, record.coverRelFilepath).delete()
     }
 }
