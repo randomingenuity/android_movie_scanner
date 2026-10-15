@@ -1,5 +1,7 @@
 package com.movie.scanner.ui.list
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -37,6 +40,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +66,7 @@ import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.util.CsvExporter
 import com.movie.scanner.util.ListLocationFilter
 import com.movie.scanner.util.MovieListFormatter
+import com.movie.scanner.util.SaveCsv
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
@@ -85,8 +91,28 @@ fun ListScreen(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var showClearDialog by remember { mutableStateOf(false) }
     var selectedMovie by remember { mutableStateOf<MovieEntity?>(null) }
+    var pendingCsvContentForSave by remember { mutableStateOf<String?>(null) }
+
+    val saveCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+    ) { destinationUri ->
+        val csvContent = pendingCsvContentForSave
+        pendingCsvContentForSave = null
+        if (destinationUri == null || csvContent == null) {
+            return@rememberLauncherForActivityResult
+        }
+        coroutineScope.launch {
+            try {
+                SaveCsv.writeMoviesCsv(context, destinationUri, csvContent)
+                snackbarHostState.showSnackbar("Saved")
+            } catch (_: Exception) {
+                snackbarHostState.showSnackbar("Could not save file")
+            }
+        }
+    }
 
     if (showClearDialog) {
         AlertDialog(
@@ -119,6 +145,7 @@ fun ListScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("List") },
@@ -135,7 +162,18 @@ fun ListScreen(
                             }
                         },
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = "Export list")
+                        Icon(Icons.Default.Share, contentDescription = "Share List")
+                    }
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                val exportMovies = viewModel.loadMoviesForExport()
+                                pendingCsvContentForSave = CsvExporter.buildCsv(exportMovies)
+                                saveCsvLauncher.launch(CsvExporter.buildDefaultFilename())
+                            }
+                        },
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Save List")
                     }
                 },
             )
