@@ -117,4 +117,31 @@ class CsvExporterTest {
             ),
         )
     }
+
+    @Test
+    fun buildCsv_includesCoverFilenameWhenRequested() {
+        val movies = listOf(
+            MovieEntity(
+                title = "The Matrix",
+                year = "1999",
+                tmdbId = 603,
+                tmdbUrl = null,
+                posterUrl = null,
+                upc = null,
+                isForceAdded = false,
+                sortOrder = 0,
+                coverRelFilepath = "603.jpg",
+            ),
+        )
+
+        val csv = CsvExporter.buildCsv(
+            movies = movies,
+            includeCoverFilename = true,
+            coverFileExists = { coverRelFilepath -> coverRelFilepath == "603.jpg" },
+        )
+        val lines = csv.lines()
+
+        assertTrue(lines[0].endsWith("cover_filename"))
+        assertTrue(lines[1].endsWith("\"603.jpg\""))
+    }
 }

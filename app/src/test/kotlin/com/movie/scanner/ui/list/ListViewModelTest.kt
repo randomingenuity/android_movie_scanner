@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.list
 
 import com.movie.scanner.data.model.MovieEntity
+import com.movie.scanner.data.repository.CatalogExportRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.util.ListPagination
 import io.mockk.every
@@ -24,6 +25,7 @@ import org.junit.Test
 class ListViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val movieRepository = mockk<MovieRepository>(relaxed = true)
+    private val catalogExportRepository = mockk<CatalogExportRepository>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -38,7 +40,7 @@ class ListViewModelTest {
 
     @Test
     fun init_clearsLoadingAfterFirstMoviesEmission() = runTest {
-        val viewModel = ListViewModel(movieRepository = movieRepository)
+        val viewModel = ListViewModel(movieRepository = movieRepository, catalogExportRepository = catalogExportRepository)
 
         assertTrue(viewModel.uiState.value.isLoadingMovies)
 
@@ -53,7 +55,7 @@ class ListViewModelTest {
         val movies = buildMovies(count = ListPagination.DEFAULT_PAGE_SIZE + 5)
         every { movieRepository.observeMovies() } returns flowOf(movies)
 
-        val viewModel = ListViewModel(movieRepository = movieRepository)
+        val viewModel = ListViewModel(movieRepository = movieRepository, catalogExportRepository = catalogExportRepository)
         advanceUntilIdle()
 
         assertEquals(ListPagination.DEFAULT_PAGE_SIZE, viewModel.uiState.value.displayedMovies.size)
@@ -77,7 +79,7 @@ class ListViewModelTest {
             )
         every { movieRepository.observeMovies() } returns flowOf(movies)
 
-        val viewModel = ListViewModel(movieRepository = movieRepository)
+        val viewModel = ListViewModel(movieRepository = movieRepository, catalogExportRepository = catalogExportRepository)
         advanceUntilIdle()
 
         viewModel.showNextPage()

@@ -8,6 +8,7 @@ import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.ReviewItemDetails
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
+import com.movie.scanner.data.repository.ListCoverRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.BulkQueueSessionState
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 sealed interface ReviewNavigationEvent {
@@ -109,6 +111,7 @@ class ReviewViewModel @Inject constructor(
     private val bulkImageRepository: BulkImageRepository,
     private val bulkQueueSessionState: BulkQueueSessionState,
     private val bulkReviewPreloadService: BulkReviewPreloadService,
+    private val listCoverRepository: ListCoverRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReviewUiState())
     val uiState: StateFlow<ReviewUiState> = _uiState.asStateFlow()
@@ -466,9 +469,11 @@ class ReviewViewModel @Inject constructor(
                 aboveTheTitleActorResolution = aboveTheTitleActorResolution,
             )
             if (result.isSuccess) {
+                val addedMovieId = result.getOrThrow()
+                persistCoverForAddedMovie(addedMovieId)
                 finishAfterAdd(
                     title = state.title,
-                    addedMovieId = result.getOrThrow(),
+                    addedMovieId = addedMovieId,
                 )
             } else {
                 _actionState.update {
@@ -498,9 +503,11 @@ class ReviewViewModel @Inject constructor(
                 aboveTheTitleActorResolution = aboveTheTitleActorResolution,
             )
             if (result.isSuccess) {
+                val addedMovieId = result.getOrThrow()
+                persistCoverForAddedMovie(addedMovieId)
                 finishAfterAdd(
                     title = state.title,
-                    addedMovieId = result.getOrThrow(),
+                    addedMovieId = addedMovieId,
                 )
             } else {
                 _actionState.update {
@@ -626,6 +633,32 @@ class ReviewViewModel @Inject constructor(
                     finishedFromBulkProcessing = finishedFromBulkProcessing,
                 )
             }
+        }
+    }
+
+
+    private suspend fun persistCoverForAddedMovie(movieId: Long) {
+        val movie = movieRepository.findById(movieId) ?: return
+        val bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath
+        val sourceCoverFile = bulkCoverRelFilepath?.let { relativeFilepath ->
+            File(bulkImageRepository.resolveAbsolutePath(relativeFilepath))
+        }?.takeIf { file -> file.isFile }
+        val coverBitmap = if (sourceCoverFile == null) {
+            scanSessionHolder.coverBitmap
+        } else {
+            null
+        }
+        val manualCaptureBasename = bulkCoverRelFilepath?.let { relativeFilepath ->
+            File(relativeFilepath).name
+        }
+        val coverRelFilepath = listCoverRepository.persistCoverForMovie(
+            movie = movie,
+            sourceCoverFile = sourceCoverFile,
+            coverBitmap = coverBitmap,
+            manualCaptureBasename = manualCaptureBasename,
+        )
+        if (coverRelFilepath != null) {
+            movieRepository.updateCoverRelFilepath(movieId, coverRelFilepath)
         }
     }
 

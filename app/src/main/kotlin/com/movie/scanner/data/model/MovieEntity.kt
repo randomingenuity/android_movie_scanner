@@ -23,4 +23,5 @@ data class MovieEntity(
     val aboveTheTitleActorNamesMatched: String? = null,
     val aboveTheTitleActorTmdbIdsMatched: String? = null,
     val aboveTheTitleActorsUnmatched: String? = null,
+    val coverRelFilepath: String? = null,
 )

@@ -29,7 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.movie.scanner.util.CsvExporter
+import com.movie.scanner.data.repository.CatalogExportPayload
+import com.movie.scanner.ui.list.ListExportFormatDialog
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
@@ -44,6 +45,34 @@ fun LoadingScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var menuExpanded by remember { mutableStateOf(false) }
+    var showExportFormatDialog by remember { mutableStateOf(false) }
+
+    if (showExportFormatDialog) {
+        ListExportFormatDialog(
+            onDismiss = { showExportFormatDialog = false },
+            onSelectFormat = { format ->
+                showExportFormatDialog = false
+                coroutineScope.launch {
+                    when (val payload = viewModel.buildCatalogExport(format)) {
+                        is CatalogExportPayload.Csv -> {
+                            ShareCsv.shareMoviesCsv(
+                                context = context,
+                                csvContent = payload.content,
+                                filename = payload.filename,
+                            )
+                        }
+                        is CatalogExportPayload.Zip -> {
+                            ShareCsv.shareCatalogZip(
+                                context = context,
+                                zipFile = payload.file,
+                                filename = payload.filename,
+                            )
+                        }
+                    }
+                }
+            },
+        )
+    }
 
     LaunchedEffect(uiState.isComplete) {
         if (uiState.isComplete) {
@@ -64,17 +93,10 @@ fun LoadingScreen(
                         onDismissRequest = { menuExpanded = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Share list") },
+                            text = { Text("Share List") },
                             onClick = {
                                 menuExpanded = false
-                                coroutineScope.launch {
-                                    val movies = viewModel.loadMoviesForExport()
-                                    ShareCsv.shareMoviesCsv(
-                                        context = context,
-                                        csvContent = CsvExporter.buildCsv(movies),
-                                        filename = CsvExporter.buildDefaultFilename(),
-                                    )
-                                }
+                                showExportFormatDialog = true
                             },
                         )
                     }
@@ -98,24 +120,27 @@ fun LoadingScreen(
                 modifier = Modifier.padding(top = 16.dp),
             )
             if (uiState.showAttempt) {
-                Text(text = "Attempt ${uiState.attempt} of 3")
+                Text(
+                    text = "Attempt ${uiState.attempt}",
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
             if (uiState.isError) {
                 Text(
-                    text = uiState.errorMessage.orEmpty(),
-                    modifier = Modifier.padding(top = 8.dp),
+                    text = uiState.errorMessage ?: "Something went wrong.",
+                    modifier = Modifier.padding(top = 16.dp),
                 )
                 Button(
-                    onClick = {
-                        val returnToCamera = uiState.retryAction == LoadingRetryAction.RETAKE_COVER
-                        viewModel.retry()
-                        if (returnToCamera) {
-                            onNavigateBackToCamera()
-                        }
-                    },
+                    onClick = { viewModel.retry() },
                     modifier = Modifier.padding(top = 16.dp),
                 ) {
                     Text("Retry")
+                }
+                Button(
+                    onClick = onNavigateBackToCamera,
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    Text("Retake Cover")
                 }
             }
         }

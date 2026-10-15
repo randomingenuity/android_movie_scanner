@@ -11,12 +11,26 @@ object CsvExporter {
         return "${timestamp}_catalog.csv"
     }
 
-    fun buildCsv(movies: List<MovieEntity>): String {
-        val header =
+    fun buildDefaultZipFilename(): String {
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
+        return "${timestamp}_catalog.zip"
+    }
+
+    fun buildCsv(
+        movies: List<MovieEntity>,
+        includeCoverFilename: Boolean = false,
+        coverFileExists: (String?) -> Boolean = { coverRelFilepath -> !coverRelFilepath.isNullOrBlank() },
+    ): String {
+        val baseHeader =
             "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url,above_the_title_actor_names_matched,above_the_title_actor_tmdb_ids_matched,above_the_title_actors_unmatched"
+        val header = if (includeCoverFilename) {
+            "$baseHeader,cover_filename"
+        } else {
+            baseHeader
+        }
         val rows = movies.map { movie ->
             val featureType = FeatureType.fromLabel(movie.featureType)
-            listOf(
+            val fields = listOf(
                 movie.title.toCsvField(),
                 movie.year.toCsvField(),
                 movie.featureType.toCsvField(),
@@ -40,7 +54,19 @@ object CsvExporter {
                 movie.aboveTheTitleActorNamesMatched.orEmpty().toCsvField(),
                 movie.aboveTheTitleActorTmdbIdsMatched.orEmpty().toCsvField(),
                 movie.aboveTheTitleActorsUnmatched.orEmpty().toCsvField(),
-            ).joinToString(",")
+            )
+            val coverFilenameFields = if (includeCoverFilename) {
+                val coverRelFilepath = movie.coverRelFilepath
+                val coverFilename = if (coverFileExists(coverRelFilepath)) {
+                    ListCoverFilename.buildCoverFilenameForCsv(coverRelFilepath)
+                } else {
+                    ""
+                }
+                listOf(coverFilename.toCsvField())
+            } else {
+                emptyList()
+            }
+            (fields + coverFilenameFields).joinToString(",")
         }
         return (listOf(header) + rows).joinToString("\n")
     }

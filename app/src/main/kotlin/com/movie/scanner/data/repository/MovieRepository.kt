@@ -15,6 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class MovieRepository @Inject constructor(
     private val movieDao: MovieDao,
+    private val listCoverRepository: ListCoverRepository,
 ) {
     fun observeMovies(): Flow<List<MovieEntity>> = movieDao.observeMovies()
 
@@ -190,11 +191,21 @@ class MovieRepository @Inject constructor(
     }
 
     suspend fun deleteMovie(movieId: Long) {
+        val movie = movieDao.findById(movieId)
+        movie?.coverRelFilepath?.let { coverRelFilepath ->
+            listCoverRepository.deleteCoverFile(coverRelFilepath)
+        }
         movieDao.deleteById(movieId)
     }
 
     suspend fun clearAll() {
+        listCoverRepository.clearAllCovers()
         movieDao.deleteAll()
+    }
+
+    suspend fun updateCoverRelFilepath(movieId: Long, coverRelFilepath: String?) {
+        val movie = movieDao.findById(movieId) ?: return
+        movieDao.update(movie.copy(coverRelFilepath = coverRelFilepath))
     }
 
     private suspend fun nextSortOrder(): Int = (movieDao.maxSortOrder() ?: -1) + 1

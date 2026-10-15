@@ -218,3 +218,10 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         database.execSQL("ALTER TABLE movies_new RENAME TO movies")
     }
 }
+
+
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE movies ADD COLUMN coverRelFilepath TEXT")
+    }
+}

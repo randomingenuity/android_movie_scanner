@@ -63,6 +63,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movie.scanner.data.model.MovieEntity
+import com.movie.scanner.data.repository.CatalogExportPayload
+import com.movie.scanner.util.CatalogExportFormat
 import com.movie.scanner.util.CsvExporter
 import com.movie.scanner.util.ListLocationFilter
 import com.movie.scanner.util.MovieListFormatter
@@ -70,11 +72,60 @@ import com.movie.scanner.util.SaveCsv
 import com.movie.scanner.util.ShareCsv
 import kotlinx.coroutines.launch
 
+private enum class ListExportAction {
+    Share,
+    Save,
+}
+
 private val ListRowHorizontalPadding = 12.dp
 private val ListRowVerticalPadding = 8.dp
 private val ListActionColumnWidth = 40.dp
 private val ListDetailOverlayMaxHeight = 480.dp
 private val ListDetailLabelWidth = 128.dp
+
+
+private fun deliverListCatalogExport(
+    exportAction: ListExportAction,
+    payload: CatalogExportPayload,
+    context: android.content.Context,
+    pendingCsvContentForSave: (String?) -> Unit,
+    pendingZipFileForSave: (java.io.File?) -> Unit,
+    saveCsvLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    saveZipLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+) {
+    when (exportAction) {
+        ListExportAction.Share -> {
+            when (payload) {
+                is CatalogExportPayload.Csv -> {
+                    ShareCsv.shareMoviesCsv(
+                        context = context,
+                        csvContent = payload.content,
+                        filename = payload.filename,
+                    )
+                }
+                is CatalogExportPayload.Zip -> {
+                    ShareCsv.shareCatalogZip(
+                        context = context,
+                        zipFile = payload.file,
+                        filename = payload.filename,
+                    )
+                }
+            }
+        }
+        ListExportAction.Save -> {
+            when (payload) {
+                is CatalogExportPayload.Csv -> {
+                    pendingCsvContentForSave(payload.content)
+                    saveCsvLauncher.launch(payload.filename)
+                }
+                is CatalogExportPayload.Zip -> {
+                    pendingZipFileForSave(payload.file)
+                    saveZipLauncher.launch(payload.filename)
+                }
+            }
+        }
+    }
+}
 
 /**
  * Saved-movie list with export, per-row TMDB open, and delete actions.
@@ -94,7 +145,10 @@ fun ListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showClearDialog by remember { mutableStateOf(false) }
     var selectedMovie by remember { mutableStateOf<MovieEntity?>(null) }
+    var showExportFormatDialog by remember { mutableStateOf(false) }
+    var pendingListExportAction by remember { mutableStateOf<ListExportAction?>(null) }
     var pendingCsvContentForSave by remember { mutableStateOf<String?>(null) }
+    var pendingZipFileForSave by remember { mutableStateOf<java.io.File?>(null) }
 
     val saveCsvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv"),
@@ -112,6 +166,50 @@ fun ListScreen(
                 snackbarHostState.showSnackbar("Could not save file")
             }
         }
+    }
+
+    val saveZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip"),
+    ) { destinationUri ->
+        val zipFile = pendingZipFileForSave
+        pendingZipFileForSave = null
+        if (destinationUri == null || zipFile == null) {
+            return@rememberLauncherForActivityResult
+        }
+        coroutineScope.launch {
+            try {
+                SaveCsv.writeFileToUri(context, destinationUri, zipFile)
+                snackbarHostState.showSnackbar("Saved")
+            } catch (_: Exception) {
+                snackbarHostState.showSnackbar("Could not save file")
+            }
+        }
+    }
+
+
+    if (showExportFormatDialog) {
+        ListExportFormatDialog(
+            onDismiss = { showExportFormatDialog = false },
+            onSelectFormat = { format ->
+                showExportFormatDialog = false
+                val exportAction = pendingListExportAction
+                pendingListExportAction = null
+                if (exportAction != null) {
+                    coroutineScope.launch {
+                        val payload = viewModel.buildCatalogExport(format)
+                        deliverListCatalogExport(
+                            exportAction = exportAction,
+                            payload = payload,
+                            context = context,
+                            pendingCsvContentForSave = { content -> pendingCsvContentForSave = content },
+                            pendingZipFileForSave = { file -> pendingZipFileForSave = file },
+                            saveCsvLauncher = saveCsvLauncher,
+                            saveZipLauncher = saveZipLauncher,
+                        )
+                    }
+                }
+            },
+        )
     }
 
     if (showClearDialog) {
@@ -152,25 +250,16 @@ fun ListScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            coroutineScope.launch {
-                                val exportMovies = viewModel.loadMoviesForExport()
-                                ShareCsv.shareMoviesCsv(
-                                    context = context,
-                                    csvContent = CsvExporter.buildCsv(exportMovies),
-                                    filename = CsvExporter.buildDefaultFilename(),
-                                )
-                            }
+                            pendingListExportAction = ListExportAction.Share
+                            showExportFormatDialog = true
                         },
                     ) {
                         Icon(Icons.Default.Share, contentDescription = "Share List")
                     }
                     IconButton(
                         onClick = {
-                            coroutineScope.launch {
-                                val exportMovies = viewModel.loadMoviesForExport()
-                                pendingCsvContentForSave = CsvExporter.buildCsv(exportMovies)
-                                saveCsvLauncher.launch(CsvExporter.buildDefaultFilename())
-                            }
+                            pendingListExportAction = ListExportAction.Save
+                            showExportFormatDialog = true
                         },
                     ) {
                         Icon(Icons.Default.Download, contentDescription = "Save List")

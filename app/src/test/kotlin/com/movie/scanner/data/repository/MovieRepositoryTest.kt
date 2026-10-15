@@ -17,6 +17,7 @@ import org.junit.Test
 
 class MovieRepositoryTest {
     private val movieDao = mockk<MovieDao>(relaxed = true)
+    private val listCoverRepository = mockk<ListCoverRepository>(relaxed = true)
     private lateinit var movieRepository: MovieRepository
     private val reviewDetails = ReviewItemDetails(
         featureType = FeatureType.MOVIE,
@@ -29,7 +30,7 @@ class MovieRepositoryTest {
 
     @Before
     fun setUp() {
-        movieRepository = MovieRepository(movieDao)
+        movieRepository = MovieRepository(movieDao, listCoverRepository)
     }
 
     @Test

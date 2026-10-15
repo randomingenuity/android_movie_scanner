@@ -7,7 +7,10 @@ import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.LlmRecognitionRepository
+import com.movie.scanner.data.repository.CatalogExportPayload
+import com.movie.scanner.data.repository.CatalogExportRepository
 import com.movie.scanner.data.repository.MovieRepository
+import com.movie.scanner.util.CatalogExportFormat
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.ScanSessionHolder
 import com.movie.scanner.util.NetworkConnectivityChecker
@@ -49,6 +52,7 @@ class LoadingViewModel @Inject constructor(
     private val tmdbRepository: TmdbRepository,
     private val movieRepository: MovieRepository,
     private val networkConnectivityChecker: NetworkConnectivityChecker,
+    private val catalogExportRepository: CatalogExportRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LoadingUiState())
     val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
@@ -62,6 +66,9 @@ class LoadingViewModel @Inject constructor(
     }
 
     suspend fun loadMoviesForExport(): List<MovieEntity> = movieRepository.listMovies()
+
+    suspend fun buildCatalogExport(format: CatalogExportFormat): CatalogExportPayload =
+        catalogExportRepository.buildExport(format)
 
     fun retry() {
         when (_uiState.value.retryAction) {

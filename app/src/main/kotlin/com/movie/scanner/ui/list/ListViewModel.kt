@@ -3,7 +3,10 @@ package com.movie.scanner.ui.list
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.movie.scanner.data.model.MovieEntity
+import com.movie.scanner.data.repository.CatalogExportPayload
+import com.movie.scanner.data.repository.CatalogExportRepository
 import com.movie.scanner.data.repository.MovieRepository
+import com.movie.scanner.util.CatalogExportFormat
 import com.movie.scanner.util.ListLocationFilter
 import com.movie.scanner.util.ListPagination
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +38,7 @@ data class ListUiState(
 @HiltViewModel
 class ListViewModel @Inject constructor(
     private val movieRepository: MovieRepository,
+    private val catalogExportRepository: CatalogExportRepository,
 ) : ViewModel() {
     private val selectedLocationFilter = MutableStateFlow(ListLocationFilter.ALL_LOCATIONS)
     private val currentPageIndex = MutableStateFlow(0)
@@ -125,4 +129,8 @@ class ListViewModel @Inject constructor(
     }
 
     suspend fun loadMoviesForExport(): List<MovieEntity> = movieRepository.listMovies()
+
+    suspend fun buildCatalogExport(format: CatalogExportFormat): CatalogExportPayload =
+        catalogExportRepository.buildExport(format)
 }
+

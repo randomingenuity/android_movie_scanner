@@ -6,6 +6,7 @@ import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.MovieGuess
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.repository.BulkImageRepository
+import com.movie.scanner.data.repository.ListCoverRepository
 import com.movie.scanner.data.repository.MovieRepository
 import com.movie.scanner.data.repository.TmdbRepository
 import com.movie.scanner.data.session.BulkQueueSessionState
@@ -41,6 +42,7 @@ class ReviewViewModelTest {
     private val bulkImageRepository = mockk<BulkImageRepository>(relaxed = true)
     private val bulkQueueSessionState = BulkQueueSessionState()
     private val bulkReviewPreloadService = mockk<BulkReviewPreloadService>(relaxed = true)
+    private val listCoverRepository = mockk<ListCoverRepository>(relaxed = true)
     private val reviewPayloadGenerationFlow = MutableStateFlow(1L)
 
     private fun createViewModel(): ReviewViewModel =
@@ -51,6 +53,7 @@ class ReviewViewModelTest {
             bulkImageRepository = bulkImageRepository,
             bulkQueueSessionState = bulkQueueSessionState,
             bulkReviewPreloadService = bulkReviewPreloadService,
+            listCoverRepository = listCoverRepository,
         )
 
     @Before
