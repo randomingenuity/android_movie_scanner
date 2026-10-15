@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.movie.scanner.util.BitmapFillCenterCrop
 import com.movie.scanner.util.ImageProxyBitmapConverter
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 private const val CAPTURE_TARGET_WIDTH = 1920
@@ -83,17 +84,24 @@ fun CameraPreview(
     val captureExecutor = remember { Executors.newSingleThreadExecutor() }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val cameraProviderReference = remember { AtomicReference<ProcessCameraProvider?>(null) }
+    val boundPreviewReference = remember { AtomicReference<Preview?>(null) }
+    val bindGeneration = remember { AtomicInteger(0) }
     var previewLayoutWidth by remember { mutableStateOf(0) }
     var previewLayoutHeight by remember { mutableStateOf(0) }
 
     LaunchedEffect(lifecycleOwner) {
+        val generation = bindGeneration.incrementAndGet()
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
+            if (generation != bindGeneration.get()) {
+                return@addListener
+            }
             val cameraProvider = cameraProviderFuture.get()
             cameraProviderReference.set(cameraProvider)
             val preview = Preview.Builder().build().also { useCase ->
                 useCase.surfaceProvider = previewView.surfaceProvider
             }
+            boundPreviewReference.set(preview)
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
                 lifecycleOwner,
@@ -106,7 +114,15 @@ fun CameraPreview(
 
     DisposableEffect(lifecycleOwner) {
         onDispose {
-            cameraProviderReference.get()?.unbindAll()
+            bindGeneration.incrementAndGet()
+            val cameraProvider = cameraProviderReference.get()
+            val boundPreview = boundPreviewReference.getAndSet(null)
+            if (cameraProvider != null) {
+                boundPreview?.let { previewUseCase ->
+                    cameraProvider.unbind(previewUseCase)
+                }
+                cameraProvider.unbind(imageCapture)
+            }
             cameraProviderReference.set(null)
             captureExecutor.shutdownNow()
         }
