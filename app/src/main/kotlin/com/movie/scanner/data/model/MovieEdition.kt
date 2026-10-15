@@ -2,7 +2,7 @@ package com.movie.scanner.data.model
 
 /**
  * Movie edition variants. [value] is stored in the database and exported as `movie_release_type`;
- * [label] is shown in pickers and list detail overlays. [NONE] uses an empty [value].
+ * [label] is shown in pickers and list detail overlays. [NO_SPECIFIC_EDITION] uses an empty [value].
  */
 enum class MovieEdition(val value: String, val label: String) {
     THEATRICAL("theatrical", "Theatrical"),
@@ -14,7 +14,7 @@ enum class MovieEdition(val value: String, val label: String) {
     WITH_BONUS_MATERIAL("with_bonus_material", "With Bonus Material"),
     RESTORED("restored", "Restored"),
     STEELBOX_EDITION("steelbox_edition", "Steelbox Edition"),
-    NONE("", "NONE"),
+    NO_SPECIFIC_EDITION("", "No specific edition"),
     ;
 
     companion object {
@@ -28,7 +28,7 @@ enum class MovieEdition(val value: String, val label: String) {
 
         fun fromStored(stored: String): MovieEdition? =
             if (stored.isEmpty()) {
-                NONE
+                NO_SPECIFIC_EDITION
             } else {
                 fromValue(stored) ?: fromLabel(stored)
             }
@@ -36,7 +36,7 @@ enum class MovieEdition(val value: String, val label: String) {
         fun labelForStored(stored: String?): String =
             when {
                 stored == null -> ""
-                stored.isEmpty() -> NONE.label
+                stored.isEmpty() -> NO_SPECIFIC_EDITION.label
                 else -> fromStored(stored)?.label ?: stored
             }
     }

@@ -619,6 +619,20 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun refreshActionState_enablesAddWhenNoSpecificEditionSelected() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateDiscType("bluray")
+        viewModel.updateEdition("")
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.uiState.value.edition)
+        assertEquals(true, viewModel.actionState.value.isAddEnabled)
+        assertEquals(null, viewModel.actionState.value.addDisabledReason)
+    }
+
+    @Test
     fun refreshActionState_showsReplaceWhenTelevisionTitleAndSeasonAlreadyExist() = runTest {
         every { scanSessionHolder.lastReviewFeatureType } returns FeatureType.TV
         val existingMovie = MovieEntity(

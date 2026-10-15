@@ -1058,7 +1058,7 @@ class ReviewViewModel @Inject constructor(
         }
         val discTypeFilled = !currentState.discType.isNullOrBlank()
         val editionFilled =
-            currentState.featureType != FeatureType.MOVIE || !currentState.edition.isNullOrBlank()
+            currentState.featureType != FeatureType.MOVIE || currentState.edition != null
         val seasonFilledForAdd =
             currentState.featureType != FeatureType.TV || seasonNumberAfterMetadata != null
         val showReplaceAdd = when (currentState.featureType) {

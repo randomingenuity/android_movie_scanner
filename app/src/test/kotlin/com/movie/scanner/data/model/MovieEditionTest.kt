@@ -12,7 +12,7 @@ class MovieEditionTest {
                 "Deluxe Edition",
                 "Director's Cut",
                 "Extended Version",
-                "NONE",
+                "No specific edition",
                 "Restored",
                 "Special Edition",
                 "Steelbox Edition",
@@ -28,12 +28,12 @@ class MovieEditionTest {
     fun labelForStored_returnsLabelForCanonicalValue() {
         assertEquals("Theatrical", MovieEdition.labelForStored("theatrical"))
         assertEquals("Director's Cut", MovieEdition.labelForStored("directors_cut"))
-        assertEquals("NONE", MovieEdition.labelForStored(""))
+        assertEquals("No specific edition", MovieEdition.labelForStored(""))
     }
 
     @Test
     fun fromStored_resolvesEmptyStringAsNone() {
-        assertEquals(MovieEdition.NONE, MovieEdition.fromStored(""))
+        assertEquals(MovieEdition.NO_SPECIFIC_EDITION, MovieEdition.fromStored(""))
         assertEquals(MovieEdition.THEATRICAL, MovieEdition.fromStored("theatrical"))
         assertNull(MovieEdition.fromStored("unknown"))
     }
