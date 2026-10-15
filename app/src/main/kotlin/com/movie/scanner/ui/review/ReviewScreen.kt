@@ -90,6 +90,7 @@ fun ReviewScreen(
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val bulkReviewSessionKey by viewModel.bulkReviewSessionKey.collectAsStateWithLifecycle()
     val reviewPayloadGeneration by viewModel.reviewPayloadGeneration.collectAsStateWithLifecycle()
+    val reviewListState = rememberLazyListState()
     val barcodeFocusRequester = remember { FocusRequester() }
     var barcodeFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var barcodeFieldReady by remember { mutableStateOf(false) }
@@ -122,6 +123,7 @@ fun ReviewScreen(
         if (bulkReviewSessionKey == 0) {
             return@LaunchedEffect
         }
+        reviewListState.scrollToItem(0)
         titleInput = uiState.title
         yearInput = uiState.year
         locationInput = uiState.location
@@ -273,6 +275,7 @@ fun ReviewScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .imePadding(),
+            state = reviewListState,
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
