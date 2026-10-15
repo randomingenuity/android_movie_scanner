@@ -19,6 +19,22 @@ class MovieGuessJsonTest {
         assertEquals("The Matrix", guess.title)
         assertEquals("1999", guess.year)
         assertEquals(0.95, guess.confidence!!, 0.0001)
+        assertEquals("", guess.aboveTheTitle)
+    }
+
+    @Test
+    fun parse_joinsAboveTheTitleArray() {
+        val guess = MovieGuessJson.parse(
+            """
+            {
+              "title": "Heat",
+              "year": "1995",
+              "above_the_title": ["Al Pacino", "Robert De Niro"]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("Al Pacino, Robert De Niro", guess.aboveTheTitle)
     }
 
     @Test

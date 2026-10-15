@@ -315,6 +315,7 @@ class ScanBulkQueueViewModel @Inject constructor(
                 barcodeGuessValue = preloadedReview.barcodeGuess,
                 tmdbResults = preloadedReview.tmdbResults,
                 capturedUpcValue = preloadedReview.capturedUpc,
+                tmdbMatchedViaBarcodeValue = preloadedReview.tmdbMatchedViaBarcode,
             )
             return
         }
@@ -324,6 +325,7 @@ class ScanBulkQueueViewModel @Inject constructor(
             barcodeGuessValue = results.barcodeGuess,
             tmdbResults = results.tmdbResults,
             capturedUpcValue = results.capturedUpc,
+            tmdbMatchedViaBarcodeValue = results.tmdbMatchedViaBarcode,
         )
     }
 

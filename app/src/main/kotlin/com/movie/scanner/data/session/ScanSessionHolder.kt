@@ -36,6 +36,8 @@ class ScanSessionHolder @Inject constructor() {
         private set
     var initialTmdbResults: List<TmdbSearchResult> = emptyList()
         private set
+    var tmdbMatchedViaBarcode: Boolean = false
+        private set
     private val _reviewPayloadGeneration = MutableStateFlow(0L)
     val reviewPayloadGeneration: StateFlow<Long> = _reviewPayloadGeneration.asStateFlow()
     var lastAddedTitle: String? = null
@@ -174,6 +176,7 @@ class ScanSessionHolder @Inject constructor() {
         coverGuess = null
         barcodeGuess = null
         initialTmdbResults = emptyList()
+        tmdbMatchedViaBarcode = false
         coverRetakeRequested = false
     }
 
@@ -224,10 +227,12 @@ class ScanSessionHolder @Inject constructor() {
         barcodeGuessValue: MovieGuess?,
         tmdbResults: List<TmdbSearchResult>,
         capturedUpcValue: String? = upc,
+        tmdbMatchedViaBarcodeValue: Boolean = false,
     ) {
         coverGuess = coverGuessValue
         barcodeGuess = barcodeGuessValue
         initialTmdbResults = tmdbResults
+        tmdbMatchedViaBarcode = tmdbMatchedViaBarcodeValue
         _reviewPayloadGeneration.update { generation -> generation + 1L }
         if (!capturedUpcValue.isNullOrBlank()) {
             capturedUpc = capturedUpcValue
@@ -252,6 +257,7 @@ class ScanSessionHolder @Inject constructor() {
         coverGuess = null
         barcodeGuess = null
         initialTmdbResults = emptyList()
+        tmdbMatchedViaBarcode = false
         lastAddedTitle = addedTitle
     }
 

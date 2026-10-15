@@ -3,7 +3,7 @@
 ## Scan
 
 - Capture a barcode photo, then a cover photo (or skip barcode / manual cover entry).
-- Identify the movie via barcode lookup and/or cover recognition, then review and add to the list.
+- Identify the movie via barcode lookup and/or cover recognition, then review and add to the list. Cover recognition always runs (including when barcode lookup finds TMDB) to capture **above-the-title** star billing for export; when barcode lookup succeeds, title and year on review still come from the barcode path.
 - Review always shows **Parameters from** and **Matched** under the cover title; **Matched** shows the TMDB id (linked to TMDB in the default browser). When title and year are known but the match was not loaded yet, review searches TMDB automatically. When neither a barcode nor a cover title could be read from the photos, review shows a warning to enter the movie name and year and tap **Refresh**.
 - Movies require **Main Feature Disc Type** and **Edition** selections before **Add** is enabled; **Edition** appears under **Main Feature Disc Type** for movies only. When **Add** (or **Replace**) is disabled, a red reason appears below the Back / Add / Skip row (missing fields, TMDB selection, duplicate list entry, or no changes compared with the saved row). **Replace** / **Force Replace** stay disabled until at least one stored field (disc type, edition, location, barcode, TMDB match, etc.) differs from the list entry.
 - **Refresh** below **Title** / **Year** re-runs TMDB search when those fields change or to retry after a search error; it is disabled while results are already in sync.
@@ -22,7 +22,7 @@
 
 ## List
 
-- Browse saved movies, export/share as CSV.
+- Browse saved movies; each row shows comma-separated **above-the-title** star billing under the title when stored. Export/share as CSV (includes **above_the_title** column).
 - **Location** filter at the top defaults to **(All)**; other choices are each distinct saved location plus **UNLOCATED** for blank locations, with an item count suffix (e.g. `Shelf A (3)`).
 - Long lists are paginated (25 rows per page) with previous/next controls and a page summary (e.g. `Page 2 of 5`, `26–50 of 120`).
 - Tap a row to open a detail overlay with saved catalog fields (e.g. **Season** only for TV, **Edition** only for movies, matching the review form); close with the corner icon, the bottom **Close** button, or a tap outside the overlay.

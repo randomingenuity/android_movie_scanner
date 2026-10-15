@@ -67,6 +67,7 @@ data class ReviewUiState(
     val showBulkCoverPreview: Boolean = false,
     val finishedFromBulkProcessing: Boolean = false,
     val requiresManualTitleEntry: Boolean = false,
+    val aboveTheTitle: String = "",
 )
 
 /**
@@ -456,6 +457,7 @@ class ReviewViewModel @Inject constructor(
                 upc = capturedBarcode,
                 match = selected,
                 details = details,
+                aboveTheTitle = state.aboveTheTitle,
             )
             if (result.isSuccess) {
                 finishAfterAdd(
@@ -482,6 +484,7 @@ class ReviewViewModel @Inject constructor(
                 year = state.year.trim(),
                 upc = capturedBarcode,
                 details = details,
+                aboveTheTitle = state.aboveTheTitle,
             )
             if (result.isSuccess) {
                 finishAfterAdd(
@@ -702,6 +705,7 @@ class ReviewViewModel @Inject constructor(
             barcodeGuessValue = preloadedReview.barcodeGuess,
             tmdbResults = preloadedReview.tmdbResults,
             capturedUpcValue = preloadedReview.capturedUpc,
+            tmdbMatchedViaBarcodeValue = preloadedReview.tmdbMatchedViaBarcode,
         )
         if (markCurrentProcessed) {
             val savedLocation = _uiState.value.location
@@ -792,6 +796,7 @@ class ReviewViewModel @Inject constructor(
             bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
                 bulkImageRepository.resolveAbsolutePath(relativePath)
             },
+            aboveTheTitle = movie.aboveTheTitle.orEmpty(),
         )
     }
 
@@ -806,6 +811,7 @@ class ReviewViewModel @Inject constructor(
             capturedBarcode = preloadedReview.capturedUpc,
             bulkCoverRelFilepath = preloadedReview.coverRelFilepath,
             isBulkProcessing = true,
+            tmdbMatchedViaBarcode = preloadedReview.tmdbMatchedViaBarcode,
         )
         markReviewPayloadConsumed()
         _bulkReviewSessionKey.update { sessionKey -> sessionKey + 1 }
@@ -820,6 +826,7 @@ class ReviewViewModel @Inject constructor(
             capturedBarcode = scanSessionHolder.resolveCapturedUpc(),
             bulkCoverRelFilepath = scanSessionHolder.bulkCoverRelFilepath,
             isBulkProcessing = scanSessionHolder.isBulkProcessing,
+            tmdbMatchedViaBarcode = scanSessionHolder.tmdbMatchedViaBarcode,
         )
 
     private fun buildReviewUiState(
@@ -829,11 +836,23 @@ class ReviewViewModel @Inject constructor(
         capturedBarcode: String?,
         bulkCoverRelFilepath: String?,
         isBulkProcessing: Boolean,
+        tmdbMatchedViaBarcode: Boolean,
     ): ReviewUiState {
-        val title = coverGuess?.title?.takeIf { title -> title.isNotBlank() }
-            ?: barcodeGuess?.title.orEmpty()
-        val year = coverGuess?.year?.takeIf { year -> year.isNotBlank() }
-            ?: barcodeGuess?.year.orEmpty()
+        val title = if (tmdbMatchedViaBarcode) {
+            barcodeGuess?.title?.takeIf { value -> value.isNotBlank() }
+                ?: coverGuess?.title.orEmpty()
+        } else {
+            coverGuess?.title?.takeIf { value -> value.isNotBlank() }
+                ?: barcodeGuess?.title.orEmpty()
+        }
+        val year = if (tmdbMatchedViaBarcode) {
+            barcodeGuess?.year?.takeIf { value -> value.isNotBlank() }
+                ?: coverGuess?.year.orEmpty()
+        } else {
+            coverGuess?.year?.takeIf { value -> value.isNotBlank() }
+                ?: barcodeGuess?.year.orEmpty()
+        }
+        val aboveTheTitle = coverGuess?.aboveTheTitle?.trim().orEmpty()
         val barcodeSuggestion = barcodeGuess?.takeIf {
             it.title.isNotBlank() &&
                 (it.title != title || it.year != year)
@@ -855,7 +874,9 @@ class ReviewViewModel @Inject constructor(
                 coverGuess = coverGuess,
                 barcodeGuess = barcodeGuess,
                 capturedBarcode = capturedBarcode,
+                tmdbMatchedViaBarcode = tmdbMatchedViaBarcode,
             ),
+            aboveTheTitle = aboveTheTitle,
             barcodeSuggestion = barcodeSuggestion,
             tmdbResults = initialResults,
             selectedTmdbResult = initialResults.firstOrNull(),
@@ -1347,10 +1368,14 @@ class ReviewViewModel @Inject constructor(
             coverGuess: MovieGuess?,
             barcodeGuess: MovieGuess?,
             capturedBarcode: String?,
+            tmdbMatchedViaBarcode: Boolean,
         ): ReviewAutomaticParameterSource {
             val coverTitle = coverGuess?.title?.trim().orEmpty()
             val barcodeTitle = barcodeGuess?.title?.trim().orEmpty()
             val barcode = capturedBarcode?.trim().orEmpty()
+            if (tmdbMatchedViaBarcode && barcodeTitle.isNotBlank()) {
+                return ReviewAutomaticParameterSource.BARCODE_LOOKUP
+            }
             if (barcode.isNotBlank() && coverTitle.isBlank() && barcodeTitle.isNotBlank()) {
                 return ReviewAutomaticParameterSource.BARCODE_LOOKUP
             }

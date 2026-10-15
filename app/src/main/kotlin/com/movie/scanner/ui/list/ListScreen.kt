@@ -386,6 +386,7 @@ private fun ListMovieRow(
     onDelete: () -> Unit,
 ) {
     val hasTmdbUrl = !movie.tmdbUrl.isNullOrBlank()
+    val aboveTheTitleBilling = movie.aboveTheTitle?.trim().orEmpty()
 
     Row(
         modifier = Modifier
@@ -398,13 +399,26 @@ private fun ListMovieRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = movie.title,
+        Column(
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = movie.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (aboveTheTitleBilling.isNotEmpty()) {
+                Text(
+                    text = aboveTheTitleBilling,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         Text(
             text = movie.year,
             modifier = Modifier.width(56.dp),

@@ -131,6 +131,7 @@ class BulkReviewPreloadService @Inject constructor(
             barcodeGuess = results.barcodeGuess,
             tmdbResults = results.tmdbResults,
             capturedUpc = results.capturedUpc,
+            tmdbMatchedViaBarcode = results.tmdbMatchedViaBarcode,
         )
     }
 

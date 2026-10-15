@@ -12,4 +12,5 @@ data class BulkProcessingResults(
     val tmdbResults: List<TmdbSearchResult> = emptyList(),
     val capturedUpc: String? = null,
     val recognitionError: String? = null,
+    val tmdbMatchedViaBarcode: Boolean = false,
 )

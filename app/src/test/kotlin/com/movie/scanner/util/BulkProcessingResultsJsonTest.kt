@@ -41,7 +41,9 @@ class BulkProcessingResultsJsonTest {
     @Test
     fun hasBarcodeResult_trueWhenRecognitionCompletedFromBarcodeOnly() {
         val results = BulkProcessingResults(
+            coverGuess = MovieGuess(title = "", year = "", aboveTheTitle = "Amy Adams"),
             barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+            tmdbMatchedViaBarcode = true,
             tmdbResults = listOf(
                 TmdbSearchResult(
                     id = 42,
@@ -58,10 +60,11 @@ class BulkProcessingResultsJsonTest {
     }
 
     @Test
-    fun hasBarcodeResult_falseWhenCoverGuessPresent() {
+    fun hasBarcodeResult_falseWhenCoverDroveTmdbMatch() {
         val results = BulkProcessingResults(
             coverGuess = MovieGuess(title = "Arrival", year = "2016"),
             barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+            tmdbMatchedViaBarcode = false,
             tmdbResults = listOf(
                 TmdbSearchResult(
                     id = 42,

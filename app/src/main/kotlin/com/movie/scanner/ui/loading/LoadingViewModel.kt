@@ -109,22 +109,45 @@ class LoadingViewModel @Inject constructor(
                 showCoverFailure("Cover photo is missing.")
                 return@launch
             }
+            _uiState.value = LoadingUiState(message = "Extracting title from cover image")
+            val coverResult = llmRecognitionRepository.recognizeCover(coverBitmap)
+            if (!networkConnectivityChecker.isConnected()) {
+                showOfflineState()
+                return@launch
+            }
+            val precomputedCoverGuess = if (coverResult.isSuccess) {
+                coverResult.getOrNull()
+            } else {
+                if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
+                    showOfflineState()
+                    return@launch
+                }
+                null
+            }
+            coverGuess = precomputedCoverGuess
             val upc = scanSessionHolder.upc
             if (!upc.isNullOrBlank()) {
-                when (tryFinishFromBarcode(scanSessionHolder.barcodeBitmap, upc)) {
+                when (
+                    tryFinishFromBarcode(
+                        barcodeBitmap = scanSessionHolder.barcodeBitmap,
+                        upc = upc,
+                        precomputedCoverGuess = precomputedCoverGuess,
+                    )
+                ) {
                     BarcodeProcessingOutcome.COMPLETED,
                     BarcodeProcessingOutcome.OFFLINE,
                     -> return@launch
                     BarcodeProcessingOutcome.CONTINUE_WITH_COVER -> Unit
                 }
             }
-            processCoverRecognition(coverBitmap)
+            processCoverRecognition(coverBitmap, precomputedCoverGuess)
         }
     }
 
     private suspend fun tryFinishFromBarcode(
         barcodeBitmap: Bitmap?,
         upc: String,
+        precomputedCoverGuess: MovieGuess?,
     ): BarcodeProcessingOutcome {
         barcodeLookupAttempted = true
         _uiState.value = LoadingUiState(message = "Finding with barcode")
@@ -142,13 +165,14 @@ class LoadingViewModel @Inject constructor(
         if (tmdbResults.isEmpty()) {
             return BarcodeProcessingOutcome.CONTINUE_WITH_COVER
         }
-        coverGuess = null
+        coverGuess = precomputedCoverGuess
         scanSessionHolder.clearBitmaps()
         scanSessionHolder.storeRecognitionResults(
-            coverGuessValue = null,
+            coverGuessValue = precomputedCoverGuess,
             barcodeGuessValue = barcodeGuess,
             tmdbResults = tmdbResults,
             capturedUpcValue = scanSessionHolder.resolveCapturedUpc(),
+            tmdbMatchedViaBarcodeValue = true,
         )
         _uiState.update {
             it.copy(
@@ -160,24 +184,31 @@ class LoadingViewModel @Inject constructor(
         return BarcodeProcessingOutcome.COMPLETED
     }
 
-    private suspend fun processCoverRecognition(coverBitmap: Bitmap) {
-        _uiState.value = LoadingUiState(message = "Extracting title from cover image")
-        val coverResult = llmRecognitionRepository.recognizeCover(coverBitmap)
-        if (!networkConnectivityChecker.isConnected()) {
-            showOfflineState()
-            return
-        }
-        if (coverResult.isFailure) {
-            if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
+    private suspend fun processCoverRecognition(
+        coverBitmap: Bitmap,
+        precomputedCoverGuess: MovieGuess?,
+    ) {
+        if (precomputedCoverGuess == null) {
+            _uiState.value = LoadingUiState(message = "Extracting title from cover image")
+            val coverResult = llmRecognitionRepository.recognizeCover(coverBitmap)
+            if (!networkConnectivityChecker.isConnected()) {
                 showOfflineState()
-            } else {
-                showCoverFailure(
-                    coverResult.exceptionOrNull()?.message ?: "Could not read the cover image.",
-                )
+                return
             }
-            return
+            if (coverResult.isFailure) {
+                if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
+                    showOfflineState()
+                } else {
+                    showCoverFailure(
+                        coverResult.exceptionOrNull()?.message ?: "Could not read the cover image.",
+                    )
+                }
+                return
+            }
+            coverGuess = coverResult.getOrNull()
+        } else {
+            coverGuess = precomputedCoverGuess
         }
-        coverGuess = coverResult.getOrNull()
         val upc = scanSessionHolder.upc
         val barcodeBitmap = scanSessionHolder.barcodeBitmap
         if (!barcodeLookupAttempted && !upc.isNullOrBlank()) {
@@ -195,6 +226,7 @@ class LoadingViewModel @Inject constructor(
                     barcodeGuessValue = barcodeGuess,
                     tmdbResults = emptyList(),
                     capturedUpcValue = capturedUpc,
+                    tmdbMatchedViaBarcodeValue = false,
                 )
                 _uiState.update {
                     it.copy(
@@ -338,6 +370,7 @@ class LoadingViewModel @Inject constructor(
                     barcodeGuessValue = barcodeGuess,
                     tmdbResults = result.getOrDefault(emptyList()),
                     capturedUpcValue = scanSessionHolder.resolveCapturedUpc(),
+                    tmdbMatchedViaBarcodeValue = false,
                 )
                 _uiState.update {
                     it.copy(

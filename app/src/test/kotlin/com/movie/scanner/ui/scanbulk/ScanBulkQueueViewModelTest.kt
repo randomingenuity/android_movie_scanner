@@ -87,6 +87,7 @@ class ScanBulkQueueViewModelTest {
         val barcodeOnlyResultsJson = BulkProcessingResultsJson.encode(
             BulkProcessingResults(
                 barcodeGuess = MovieGuess(title = "Arrival", year = "2016"),
+                tmdbMatchedViaBarcode = true,
                 tmdbResults = listOf(
                     TmdbSearchResult(
                         id = 42,

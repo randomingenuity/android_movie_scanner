@@ -351,7 +351,12 @@ class LlmRecognitionRepository @Inject constructor(
         """.trimIndent()
 
     companion object {
-        private const val COVER_PROMPT =
-            "Identify the movie from this cover photo. Return only JSON with keys title, year, and confidence between 0 and 1. If year is unknown, return an empty string for year."
+        private val COVER_PROMPT =
+            """
+            Identify the movie from this DVD, Blu-ray, or cover photo.
+            Return only JSON with keys title, year, confidence between 0 and 1, and above_the_title.
+            above_the_title must be a JSON array of actor names printed in large star billing ABOVE the main movie title (not director or studio text). Use an empty array when none are visible.
+            If year is unknown, return an empty string for year.
+            """.trimIndent()
     }
 }

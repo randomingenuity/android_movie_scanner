@@ -14,4 +14,5 @@ data class PreloadedBulkReview(
     val barcodeGuess: MovieGuess?,
     val tmdbResults: List<TmdbSearchResult>,
     val capturedUpc: String?,
+    val tmdbMatchedViaBarcode: Boolean = false,
 )

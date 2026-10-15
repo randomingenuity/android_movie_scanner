@@ -147,16 +147,26 @@ class BulkRecognitionProcessor @Inject constructor(
         var barcodeGuess: MovieGuess? = null
         var barcodeLookupAttempted = false
         val capturedUpc = decodedBarcode?.takeIf { upc -> upc.isNotBlank() }
+        val coverResult = llmRecognitionRepository.recognizeCover(coverBitmap)
+        if (!networkConnectivityChecker.isConnected()) {
+            return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
+        }
+        if (coverResult.isSuccess) {
+            coverGuess = coverResult.getOrNull()
+        } else if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
+            return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
+        }
         if (!capturedUpc.isNullOrBlank()) {
             when (val barcodeOutcome = tryFinishFromBarcode(capturedUpc, barcodeBitmap)) {
                 BarcodeRecognitionResult.Offline ->
                     return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
                 is BarcodeRecognitionResult.Completed -> {
                     return BulkProcessingResults(
-                        coverGuess = null,
+                        coverGuess = coverGuess,
                         barcodeGuess = barcodeOutcome.barcodeGuess,
                         tmdbResults = barcodeOutcome.tmdbResults,
                         capturedUpc = capturedUpc,
+                        tmdbMatchedViaBarcode = true,
                     )
                 }
                 BarcodeRecognitionResult.ContinueWithCover -> {
@@ -165,23 +175,15 @@ class BulkRecognitionProcessor @Inject constructor(
             }
             barcodeLookupAttempted = true
         }
-        val coverResult = llmRecognitionRepository.recognizeCover(coverBitmap)
-        if (!networkConnectivityChecker.isConnected()) {
-            return BulkProcessingResults(recognitionError = "Offline scanning is not supported.")
-        }
-        if (coverResult.isFailure) {
-            val message = if (isLikelyNetworkFailure(coverResult.exceptionOrNull())) {
-                "Offline scanning is not supported."
-            } else {
+        if (coverGuess == null && coverResult.isFailure) {
+            val message =
                 coverResult.exceptionOrNull()?.message ?: "Could not read the cover image."
-            }
             return BulkProcessingResults(
                 barcodeGuess = barcodeGuess,
                 capturedUpc = capturedUpc,
                 recognitionError = message,
             )
         }
-        coverGuess = coverResult.getOrNull()
         if (!barcodeLookupAttempted && !capturedUpc.isNullOrBlank()) {
             barcodeGuess = llmRecognitionRepository.recognizeBarcode(capturedUpc, barcodeBitmap).getOrNull()
         }

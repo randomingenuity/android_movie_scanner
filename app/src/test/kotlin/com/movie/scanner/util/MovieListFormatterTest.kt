@@ -31,6 +31,7 @@ class MovieListFormatterTest {
         assertEquals(
             listOf(
                 "Title" to "The Matrix",
+                "Above the title" to "",
                 "Year" to "1999",
                 "Feature type" to "Movie",
                 "Barcode" to "9781234567890",
@@ -69,6 +70,7 @@ class MovieListFormatterTest {
         assertEquals(
             listOf(
                 "Title" to "Breaking Bad",
+                "Above the title" to "",
                 "Year" to "2008",
                 "Feature type" to "TV",
                 "Barcode" to "",

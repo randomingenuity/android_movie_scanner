@@ -65,6 +65,7 @@ class MovieRepository @Inject constructor(
         upc: String?,
         match: TmdbSearchResult,
         details: ReviewItemDetails,
+        aboveTheTitle: String? = null,
     ): Result<Long> = runCatching {
         val existingMovie = if (details.featureType == FeatureType.TV) {
             val seasonNumber = requireNotNull(details.seasonNumber) {
@@ -90,6 +91,7 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
+                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
                 ),
             )
             existingMovie.id
@@ -110,6 +112,7 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
+                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
                 ),
             )
         }
@@ -120,6 +123,7 @@ class MovieRepository @Inject constructor(
         year: String,
         upc: String?,
         details: ReviewItemDetails,
+        aboveTheTitle: String? = null,
     ): Result<Long> = runCatching {
         val existingMovie = if (details.featureType == FeatureType.TV) {
             val seasonNumber = requireNotNull(details.seasonNumber) {
@@ -145,6 +149,7 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
+                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
                 ),
             )
             existingMovie.id
@@ -165,6 +170,7 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
+                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
                 ),
             )
         }

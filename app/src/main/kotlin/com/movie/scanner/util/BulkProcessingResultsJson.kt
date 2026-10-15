@@ -13,7 +13,7 @@ object BulkProcessingResultsJson {
         json.decodeFromString(BulkProcessingResults.serializer(), raw)
 
     /**
-     * True when recognition finished from barcode lookup alone (cover was not needed).
+     * True when TMDB was matched from barcode lookup (title/year on review come from barcode).
      */
     fun hasBarcodeResult(results: BulkProcessingResults): Boolean {
         if (results.recognitionError != null) {
@@ -22,7 +22,7 @@ object BulkProcessingResultsJson {
         if (results.tmdbResults.isEmpty()) {
             return false
         }
-        if (results.coverGuess != null) {
+        if (!results.tmdbMatchedViaBarcode) {
             return false
         }
         return results.barcodeGuess?.title?.isNotBlank() == true
