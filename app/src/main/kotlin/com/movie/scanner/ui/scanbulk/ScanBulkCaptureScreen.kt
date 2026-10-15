@@ -49,7 +49,6 @@ import com.movie.scanner.ui.navigation.ScanBulkNavigationViewModel
 fun ScanBulkCaptureScreen(
     scanBulkNavigationViewModel: ScanBulkNavigationViewModel,
     onNavigateToQueue: () -> Unit,
-    onNavigateToScan: () -> Unit,
     onNavigateToLoading: () -> Unit,
     onNavigateBackToReview: () -> Unit,
     viewModel: ScanBulkCaptureViewModel = hiltViewModel(),
@@ -261,14 +260,6 @@ fun ScanBulkCaptureScreen(
                                 Button(onClick = scanBulkNavigationViewModel::openLocationDialog) {
                                     Text("Location")
                                 }
-                            }
-                            Button(
-                                onClick = onNavigateToScan,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                ),
-                            ) {
-                                Text("Exit")
                             }
                             Button(
                                 onClick = viewModel::finishScanning,
