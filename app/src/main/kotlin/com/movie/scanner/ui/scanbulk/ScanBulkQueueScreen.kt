@@ -465,10 +465,12 @@ private fun BulkQueueDataRow(
     } else {
         Modifier
     }
-    val linkColor = if (row.isBarcodeAlreadyInList) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
+    val allowBarcodeCoverPreview =
+        !row.isBarcodeAlreadyInList || row.status == BulkQueueItemStatus.PROCESSED
+    val linkColor = if (allowBarcodeCoverPreview) {
         MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurface
     }
     Row(
         modifier = Modifier
@@ -504,7 +506,7 @@ private fun BulkQueueDataRow(
                 .weight(1f)
                 .then(dimRowContent)
                 .then(
-                    if (row.isBarcodeAlreadyInList || !row.hasBarcodeImage) {
+                    if (!row.hasBarcodeImage || !allowBarcodeCoverPreview) {
                         Modifier
                     } else {
                         Modifier.clickable(onClick = onBarcodeClick)
@@ -523,7 +525,7 @@ private fun BulkQueueDataRow(
                 .weight(1f)
                 .then(dimRowContent)
                 .then(
-                    if (row.isBarcodeAlreadyInList) {
+                    if (!allowBarcodeCoverPreview) {
                         Modifier
                     } else {
                         Modifier.clickable(onClick = onCoverClick)
