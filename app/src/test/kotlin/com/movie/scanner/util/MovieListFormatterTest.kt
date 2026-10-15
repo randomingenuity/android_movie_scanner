@@ -32,6 +32,7 @@ class MovieListFormatterTest {
             listOf(
                 "Title" to "The Matrix",
                 "Above the title (matched)" to "",
+                "Above the title (matched TMDB IDs)" to "",
                 "Above the title (unmatched)" to "",
                 "Year" to "1999",
                 "Feature type" to "Movie",
@@ -72,6 +73,7 @@ class MovieListFormatterTest {
             listOf(
                 "Title" to "Breaking Bad",
                 "Above the title (matched)" to "",
+                "Above the title (matched TMDB IDs)" to "",
                 "Above the title (unmatched)" to "",
                 "Year" to "2008",
                 "Feature type" to "TV",

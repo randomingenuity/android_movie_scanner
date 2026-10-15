@@ -22,7 +22,7 @@
 
 ## List
 
-- Browse saved movies; each row shows TMDB-matched and unmatched **above-the-title** actor lines under the title when stored. Export/share as CSV (**above_the_title_actors_matched**, **above_the_title_actors_unmatched**); matched names use TMDB cast spelling from fuzzy match at add time.
+- Browse saved movies; each row shows TMDB-matched and unmatched **above-the-title** actor lines under the title when stored. Export/share as CSV (**above_the_title_actor_names_matched**, **above_the_title_actor_tmdb_ids_matched**, **above_the_title_actors_unmatched**); matched names use TMDB cast spelling and IDs from fuzzy match at add time (same scan order in both matched columns).
 - **Location** filter at the top defaults to **(All)**; other choices are each distinct saved location plus **UNLOCATED** for blank locations, with an item count suffix (e.g. `Shelf A (3)`).
 - Long lists are paginated (25 rows per page) with previous/next controls and a page summary (e.g. `Page 2 of 5`, `26–50 of 120`).
 - Tap a row to open a detail overlay with saved catalog fields (e.g. **Season** only for TV, **Edition** only for movies, matching the review form); close with the corner icon, the bottom **Close** button, or a tap outside the overlay.

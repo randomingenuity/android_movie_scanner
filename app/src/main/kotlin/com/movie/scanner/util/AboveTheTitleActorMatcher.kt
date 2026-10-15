@@ -6,8 +6,14 @@ package com.movie.scanner.util
 object AboveTheTitleActorMatcher {
     private const val MINIMUM_MATCH_SIMILARITY = 0.82
 
+    data class TmdbCastMemberForMatch(
+        val tmdbPersonId: Int,
+        val name: String,
+    )
+
     data class MatchResult(
         val matchedTmdbNames: List<String>,
+        val matchedTmdbPersonIds: List<Int>,
         val unmatchedNormalizedNames: List<String>,
     )
 
@@ -19,24 +25,30 @@ object AboveTheTitleActorMatcher {
     fun joinCommaSeparated(names: List<String>): String =
         names.joinToString(", ")
 
+    fun joinCommaSeparatedTmdbPersonIds(personIds: List<Int>): String =
+        personIds.joinToString(", ")
+
     /**
      * Matches scanned billing names to TMDB cast in scan order; unmatched names are title-cased.
      */
     fun matchScannedNamesToTmdbCast(
         scannedNames: List<String>,
-        tmdbCastNames: List<String>,
+        tmdbCastMembers: List<TmdbCastMemberForMatch>,
     ): MatchResult {
         if (scannedNames.isEmpty()) {
-            return MatchResult(emptyList(), emptyList())
+            return MatchResult(emptyList(), emptyList(), emptyList())
         }
-        val availableCast = tmdbCastNames.toMutableList()
+        val availableCast = tmdbCastMembers.toMutableList()
         val matchedTmdbNames = mutableListOf<String>()
+        val matchedTmdbPersonIds = mutableListOf<Int>()
         val unmatchedNormalizedNames = mutableListOf<String>()
 
         for (scannedName in scannedNames) {
-            val bestCastIndex = findBestCastMatchIndex(scannedName, availableCast)
+            val bestCastIndex = findBestCastMatchIndex(scannedName, availableCast.map { member -> member.name })
             if (bestCastIndex != null) {
-                matchedTmdbNames.add(availableCast.removeAt(bestCastIndex))
+                val matchedMember = availableCast.removeAt(bestCastIndex)
+                matchedTmdbNames.add(matchedMember.name)
+                matchedTmdbPersonIds.add(matchedMember.tmdbPersonId)
             } else {
                 unmatchedNormalizedNames.add(normalizeActorDisplayName(scannedName))
             }
@@ -44,6 +56,7 @@ object AboveTheTitleActorMatcher {
 
         return MatchResult(
             matchedTmdbNames = matchedTmdbNames,
+            matchedTmdbPersonIds = matchedTmdbPersonIds,
             unmatchedNormalizedNames = unmatchedNormalizedNames,
         )
     }

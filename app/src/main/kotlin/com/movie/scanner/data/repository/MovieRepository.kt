@@ -92,7 +92,9 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorNamesMatched = aboveTheTitleActorResolution?.matchedNamesCommaSeparated,
+                    aboveTheTitleActorTmdbIdsMatched =
+                        aboveTheTitleActorResolution?.matchedTmdbPersonIdsCommaSeparated,
                     aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
@@ -114,7 +116,9 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorNamesMatched = aboveTheTitleActorResolution?.matchedNamesCommaSeparated,
+                    aboveTheTitleActorTmdbIdsMatched =
+                        aboveTheTitleActorResolution?.matchedTmdbPersonIdsCommaSeparated,
                     aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
@@ -152,7 +156,9 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorNamesMatched = aboveTheTitleActorResolution?.matchedNamesCommaSeparated,
+                    aboveTheTitleActorTmdbIdsMatched =
+                        aboveTheTitleActorResolution?.matchedTmdbPersonIdsCommaSeparated,
                     aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
@@ -174,7 +180,9 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorNamesMatched = aboveTheTitleActorResolution?.matchedNamesCommaSeparated,
+                    aboveTheTitleActorTmdbIdsMatched =
+                        aboveTheTitleActorResolution?.matchedTmdbPersonIdsCommaSeparated,
                     aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )

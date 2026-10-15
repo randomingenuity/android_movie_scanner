@@ -4,30 +4,36 @@ package com.movie.scanner.util
  * Resolved above-the-title billing for persistence and CSV export.
  */
 data class AboveTheTitleActorResolution(
-    val matchedCommaSeparated: String?,
+    val matchedNamesCommaSeparated: String?,
+    val matchedTmdbPersonIdsCommaSeparated: String?,
     val unmatchedCommaSeparated: String?,
 ) {
     companion object {
         fun buildFromRawBilling(
             rawAboveTheTitle: String,
-            tmdbCastNames: List<String>,
+            tmdbCastMembers: List<AboveTheTitleActorMatcher.TmdbCastMemberForMatch>,
         ): AboveTheTitleActorResolution {
             val scannedNames = AboveTheTitleActorMatcher.parseCommaSeparatedActorNames(rawAboveTheTitle)
             if (scannedNames.isEmpty()) {
-                return AboveTheTitleActorResolution(null, null)
+                return AboveTheTitleActorResolution(null, null, null)
             }
             val matchResult = AboveTheTitleActorMatcher.matchScannedNamesToTmdbCast(
                 scannedNames = scannedNames,
-                tmdbCastNames = tmdbCastNames,
+                tmdbCastMembers = tmdbCastMembers,
             )
-            val matchedCommaSeparated = AboveTheTitleActorMatcher.joinCommaSeparated(matchResult.matchedTmdbNames)
-                .takeIf { value -> value.isNotBlank() }
+            val matchedNamesCommaSeparated =
+                AboveTheTitleActorMatcher.joinCommaSeparated(matchResult.matchedTmdbNames)
+                    .takeIf { value -> value.isNotBlank() }
+            val matchedTmdbPersonIdsCommaSeparated =
+                AboveTheTitleActorMatcher.joinCommaSeparatedTmdbPersonIds(matchResult.matchedTmdbPersonIds)
+                    .takeIf { value -> value.isNotBlank() }
             val unmatchedCommaSeparated =
                 AboveTheTitleActorMatcher.joinCommaSeparated(matchResult.unmatchedNormalizedNames)
                     .takeIf { value -> value.isNotBlank() }
 
             return AboveTheTitleActorResolution(
-                matchedCommaSeparated = matchedCommaSeparated,
+                matchedNamesCommaSeparated = matchedNamesCommaSeparated,
+                matchedTmdbPersonIdsCommaSeparated = matchedTmdbPersonIdsCommaSeparated,
                 unmatchedCommaSeparated = unmatchedCommaSeparated,
             )
         }
@@ -35,7 +41,7 @@ data class AboveTheTitleActorResolution(
         fun buildUnmatchedOnlyFromRawBilling(rawAboveTheTitle: String): AboveTheTitleActorResolution {
             val scannedNames = AboveTheTitleActorMatcher.parseCommaSeparatedActorNames(rawAboveTheTitle)
             if (scannedNames.isEmpty()) {
-                return AboveTheTitleActorResolution(null, null)
+                return AboveTheTitleActorResolution(null, null, null)
             }
             val normalizedNames = scannedNames.map { name ->
                 AboveTheTitleActorMatcher.normalizeActorDisplayName(name)
@@ -44,7 +50,8 @@ data class AboveTheTitleActorResolution(
                 .takeIf { value -> value.isNotBlank() }
 
             return AboveTheTitleActorResolution(
-                matchedCommaSeparated = null,
+                matchedNamesCommaSeparated = null,
+                matchedTmdbPersonIdsCommaSeparated = null,
                 unmatchedCommaSeparated = unmatchedCommaSeparated,
             )
         }

@@ -69,5 +69,6 @@ data class TmdbMovieCreditsResponse(
 
 @JsonClass(generateAdapter = true)
 data class TmdbCastMemberJson(
+    val id: Int,
     val name: String,
 )

@@ -386,7 +386,7 @@ private fun ListMovieRow(
     onDelete: () -> Unit,
 ) {
     val hasTmdbUrl = !movie.tmdbUrl.isNullOrBlank()
-    val matchedActorBilling = movie.aboveTheTitleActorsMatched?.trim().orEmpty()
+    val matchedActorBilling = movie.aboveTheTitleActorNamesMatched?.trim().orEmpty()
     val unmatchedActorBilling = movie.aboveTheTitleActorsUnmatched?.trim().orEmpty()
 
     Row(

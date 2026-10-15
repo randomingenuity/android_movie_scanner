@@ -913,11 +913,12 @@ class ReviewViewModel @Inject constructor(
             return null
         }
         if (featureType == FeatureType.MOVIE && tmdbMovieId != null) {
-            val castNames = tmdbRepository.loadMovieCastNames(tmdbMovieId).getOrElse { emptyList() }
-            if (castNames.isNotEmpty()) {
+            val castMembers = tmdbRepository.loadMovieCastMembersForBillingMatch(tmdbMovieId)
+                .getOrElse { emptyList() }
+            if (castMembers.isNotEmpty()) {
                 return AboveTheTitleActorResolution.buildFromRawBilling(
                     rawAboveTheTitle = rawAboveTheTitle,
-                    tmdbCastNames = castNames,
+                    tmdbCastMembers = castMembers,
                 )
             }
         }
@@ -926,7 +927,7 @@ class ReviewViewModel @Inject constructor(
 
     private fun buildRawAboveTheTitleFromStoredMovie(movie: MovieEntity): String {
         val segments = listOfNotNull(
-            movie.aboveTheTitleActorsMatched?.trim()?.takeIf { value -> value.isNotBlank() },
+            movie.aboveTheTitleActorNamesMatched?.trim()?.takeIf { value -> value.isNotBlank() },
             movie.aboveTheTitleActorsUnmatched?.trim()?.takeIf { value -> value.isNotBlank() },
         )
         return segments.joinToString(", ")

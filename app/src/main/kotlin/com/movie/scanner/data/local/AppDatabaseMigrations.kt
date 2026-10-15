@@ -125,6 +125,15 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE movies RENAME COLUMN aboveTheTitleActorsMatched TO aboveTheTitleActorNamesMatched",
+        )
+        database.execSQL("ALTER TABLE movies ADD COLUMN aboveTheTitleActorTmdbIdsMatched TEXT")
+    }
+}
+
 private fun rebuildMoviesTableWithoutLegacyAboveTheTitleColumn(database: SupportSQLiteDatabase) {
     database.execSQL(
         """

@@ -4,6 +4,7 @@ import android.content.Context
 import com.movie.scanner.data.local.ApiKeyStore
 import com.movie.scanner.data.model.TmdbSearchResult
 import com.movie.scanner.data.remote.TmdbApi
+import com.movie.scanner.util.AboveTheTitleActorMatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import javax.inject.Inject
@@ -54,14 +55,19 @@ class TmdbRepository @Inject constructor(
         }
     }
 
-    suspend fun loadMovieCastNames(movieId: Int): Result<List<String>> {
+    suspend fun loadMovieCastMembersForBillingMatch(movieId: Int): Result<List<AboveTheTitleActorMatcher.TmdbCastMemberForMatch>> {
         val apiKey = apiKeyStore.getTmdbApiKey()
             ?: return Result.failure(IllegalStateException("TMDB API key is not configured."))
         return runCatching {
             tmdbApi.getMovieCredits(movieId = movieId, apiKey = apiKey)
                 .cast
-                .map { castMember -> castMember.name }
-                .filter { name -> name.isNotBlank() }
+                .filter { castMember -> castMember.name.isNotBlank() }
+                .map { castMember ->
+                    AboveTheTitleActorMatcher.TmdbCastMemberForMatch(
+                        tmdbPersonId = castMember.id,
+                        name = castMember.name,
+                    )
+                }
         }
     }
 
