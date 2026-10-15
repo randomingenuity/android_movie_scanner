@@ -386,7 +386,8 @@ private fun ListMovieRow(
     onDelete: () -> Unit,
 ) {
     val hasTmdbUrl = !movie.tmdbUrl.isNullOrBlank()
-    val aboveTheTitleBilling = movie.aboveTheTitle?.trim().orEmpty()
+    val matchedActorBilling = movie.aboveTheTitleActorsMatched?.trim().orEmpty()
+    val unmatchedActorBilling = movie.aboveTheTitleActorsUnmatched?.trim().orEmpty()
 
     Row(
         modifier = Modifier
@@ -409,9 +410,18 @@ private fun ListMovieRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (aboveTheTitleBilling.isNotEmpty()) {
+            if (matchedActorBilling.isNotEmpty()) {
                 Text(
-                    text = aboveTheTitleBilling,
+                    text = matchedActorBilling,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (unmatchedActorBilling.isNotEmpty()) {
+                Text(
+                    text = unmatchedActorBilling,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,

@@ -14,6 +14,7 @@ import com.movie.scanner.data.session.BulkQueueSessionState
 import com.movie.scanner.data.session.BulkReviewPreloadService
 import com.movie.scanner.data.session.PreloadedBulkReview
 import com.movie.scanner.data.session.ScanSessionHolder
+import com.movie.scanner.util.AboveTheTitleActorResolution
 import com.movie.scanner.util.IntegerInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -451,13 +452,18 @@ class ReviewViewModel @Inject constructor(
             val selected = state.selectedTmdbResult ?: return@launch
             val capturedBarcode = resolveCapturedBarcode(state)
             val details = buildReviewItemDetails(state) ?: return@launch
+            val aboveTheTitleActorResolution = resolveAboveTheTitleActorResolution(
+                rawAboveTheTitle = state.aboveTheTitle,
+                featureType = state.featureType,
+                tmdbMovieId = selected.id,
+            )
             val result = movieRepository.addMatchedMovie(
                 title = state.title.trim(),
                 year = state.year.trim(),
                 upc = capturedBarcode,
                 match = selected,
                 details = details,
-                aboveTheTitle = state.aboveTheTitle,
+                aboveTheTitleActorResolution = aboveTheTitleActorResolution,
             )
             if (result.isSuccess) {
                 finishAfterAdd(
@@ -479,12 +485,17 @@ class ReviewViewModel @Inject constructor(
             val state = _uiState.value
             val capturedBarcode = resolveCapturedBarcode(state)
             val details = buildReviewItemDetails(state) ?: return@launch
+            val aboveTheTitleActorResolution = resolveAboveTheTitleActorResolution(
+                rawAboveTheTitle = state.aboveTheTitle,
+                featureType = state.featureType,
+                tmdbMovieId = null,
+            )
             val result = movieRepository.addForceMovie(
                 title = state.title.trim(),
                 year = state.year.trim(),
                 upc = capturedBarcode,
                 details = details,
-                aboveTheTitle = state.aboveTheTitle,
+                aboveTheTitleActorResolution = aboveTheTitleActorResolution,
             )
             if (result.isSuccess) {
                 finishAfterAdd(
@@ -796,7 +807,7 @@ class ReviewViewModel @Inject constructor(
             bulkCoverAbsolutePath = bulkCoverRelFilepath?.let { relativePath ->
                 bulkImageRepository.resolveAbsolutePath(relativePath)
             },
-            aboveTheTitle = movie.aboveTheTitle.orEmpty(),
+            aboveTheTitle = buildRawAboveTheTitleFromStoredMovie(movie),
         )
     }
 
@@ -891,6 +902,34 @@ class ReviewViewModel @Inject constructor(
                 capturedBarcode = capturedBarcode,
             ),
         )
+    }
+
+    private suspend fun resolveAboveTheTitleActorResolution(
+        rawAboveTheTitle: String,
+        featureType: FeatureType,
+        tmdbMovieId: Int?,
+    ): AboveTheTitleActorResolution? {
+        if (rawAboveTheTitle.isBlank()) {
+            return null
+        }
+        if (featureType == FeatureType.MOVIE && tmdbMovieId != null) {
+            val castNames = tmdbRepository.loadMovieCastNames(tmdbMovieId).getOrElse { emptyList() }
+            if (castNames.isNotEmpty()) {
+                return AboveTheTitleActorResolution.buildFromRawBilling(
+                    rawAboveTheTitle = rawAboveTheTitle,
+                    tmdbCastNames = castNames,
+                )
+            }
+        }
+        return AboveTheTitleActorResolution.buildUnmatchedOnlyFromRawBilling(rawAboveTheTitle)
+    }
+
+    private fun buildRawAboveTheTitleFromStoredMovie(movie: MovieEntity): String {
+        val segments = listOfNotNull(
+            movie.aboveTheTitleActorsMatched?.trim()?.takeIf { value -> value.isNotBlank() },
+            movie.aboveTheTitleActorsUnmatched?.trim()?.takeIf { value -> value.isNotBlank() },
+        )
+        return segments.joinToString(", ")
     }
 
     private fun buildReviewItemDetails(state: ReviewUiState): ReviewItemDetails? {

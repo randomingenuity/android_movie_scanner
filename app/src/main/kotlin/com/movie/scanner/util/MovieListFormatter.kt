@@ -14,7 +14,8 @@ object MovieListFormatter {
         val featureType = FeatureType.fromLabel(movie.featureType)
         val detailFields = mutableListOf(
             "Title" to movie.title,
-            "Above the title" to movie.aboveTheTitle.orEmpty(),
+            "Above the title (matched)" to movie.aboveTheTitleActorsMatched.orEmpty(),
+            "Above the title (unmatched)" to movie.aboveTheTitleActorsUnmatched.orEmpty(),
             "Year" to movie.year,
             "Feature type" to movie.featureType,
             "Barcode" to movie.upc.orEmpty(),

@@ -3,6 +3,7 @@ package com.movie.scanner.data.remote
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface TmdbApi {
@@ -23,6 +24,12 @@ interface TmdbApi {
         @Query("year") year: String? = null,
         @Query("language") language: String,
     ): TmdbSearchResponse
+
+    @GET("movie/{movie_id}/credits")
+    suspend fun getMovieCredits(
+        @Path("movie_id") movieId: Int,
+        @Query("api_key") apiKey: String,
+    ): TmdbMovieCreditsResponse
 }
 
 @JsonClass(generateAdapter = true)
@@ -53,4 +60,14 @@ data class TmdbMovieJson(
     val title: String,
     @Json(name = "release_date") val releaseDate: String?,
     @Json(name = "poster_path") val posterPath: String?,
+)
+
+@JsonClass(generateAdapter = true)
+data class TmdbMovieCreditsResponse(
+    val cast: List<TmdbCastMemberJson> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class TmdbCastMemberJson(
+    val name: String,
 )

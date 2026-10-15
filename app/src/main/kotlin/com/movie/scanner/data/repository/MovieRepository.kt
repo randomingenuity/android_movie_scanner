@@ -5,6 +5,7 @@ import com.movie.scanner.data.model.FeatureType
 import com.movie.scanner.data.model.MovieEntity
 import com.movie.scanner.data.model.ReviewItemDetails
 import com.movie.scanner.data.model.TmdbSearchResult
+import com.movie.scanner.util.AboveTheTitleActorResolution
 import com.movie.scanner.util.normalizeReviewBarcode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -65,7 +66,7 @@ class MovieRepository @Inject constructor(
         upc: String?,
         match: TmdbSearchResult,
         details: ReviewItemDetails,
-        aboveTheTitle: String? = null,
+        aboveTheTitleActorResolution: AboveTheTitleActorResolution? = null,
     ): Result<Long> = runCatching {
         val existingMovie = if (details.featureType == FeatureType.TV) {
             val seasonNumber = requireNotNull(details.seasonNumber) {
@@ -91,7 +92,8 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
+                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
             existingMovie.id
@@ -112,7 +114,8 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
+                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
         }
@@ -123,7 +126,7 @@ class MovieRepository @Inject constructor(
         year: String,
         upc: String?,
         details: ReviewItemDetails,
-        aboveTheTitle: String? = null,
+        aboveTheTitleActorResolution: AboveTheTitleActorResolution? = null,
     ): Result<Long> = runCatching {
         val existingMovie = if (details.featureType == FeatureType.TV) {
             val seasonNumber = requireNotNull(details.seasonNumber) {
@@ -149,7 +152,8 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
+                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
             existingMovie.id
@@ -170,7 +174,8 @@ class MovieRepository @Inject constructor(
                     location = details.location,
                     seasonNumber = details.seasonNumber,
                     numberOfDiscs = details.numberOfDiscs,
-                    aboveTheTitle = aboveTheTitle?.takeIf { billing -> billing.isNotBlank() },
+                    aboveTheTitleActorsMatched = aboveTheTitleActorResolution?.matchedCommaSeparated,
+                    aboveTheTitleActorsUnmatched = aboveTheTitleActorResolution?.unmatchedCommaSeparated,
                 ),
             )
         }

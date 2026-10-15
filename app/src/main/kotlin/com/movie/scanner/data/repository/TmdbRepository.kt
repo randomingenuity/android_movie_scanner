@@ -54,6 +54,17 @@ class TmdbRepository @Inject constructor(
         }
     }
 
+    suspend fun loadMovieCastNames(movieId: Int): Result<List<String>> {
+        val apiKey = apiKeyStore.getTmdbApiKey()
+            ?: return Result.failure(IllegalStateException("TMDB API key is not configured."))
+        return runCatching {
+            tmdbApi.getMovieCredits(movieId = movieId, apiKey = apiKey)
+                .cast
+                .map { castMember -> castMember.name }
+                .filter { name -> name.isNotBlank() }
+        }
+    }
+
     /**
      * Loads TMDB image base URL once per API key and reuses it for subsequent searches.
      */

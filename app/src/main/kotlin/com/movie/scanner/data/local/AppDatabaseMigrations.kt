@@ -104,6 +104,71 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE movies ADD COLUMN aboveTheTitleActorsMatched TEXT")
+        database.execSQL("ALTER TABLE movies ADD COLUMN aboveTheTitleActorsUnmatched TEXT")
+        database.execSQL(
+            """
+            UPDATE movies
+            SET aboveTheTitleActorsUnmatched = aboveTheTitle
+            WHERE aboveTheTitle IS NOT NULL AND TRIM(aboveTheTitle) != ''
+            """.trimIndent(),
+        )
+        rebuildMoviesTableWithoutLegacyAboveTheTitleColumn(database)
+    }
+}
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        rebuildMoviesTableWithoutLegacyAboveTheTitleColumn(database)
+    }
+}
+
+private fun rebuildMoviesTableWithoutLegacyAboveTheTitleColumn(database: SupportSQLiteDatabase) {
+    database.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS movies_migration_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            title TEXT NOT NULL,
+            year TEXT NOT NULL,
+            tmdbId INTEGER,
+            tmdbUrl TEXT,
+            posterUrl TEXT,
+            upc TEXT,
+            isForceAdded INTEGER NOT NULL,
+            sortOrder INTEGER NOT NULL,
+            featureType TEXT NOT NULL,
+            discType TEXT,
+            edition TEXT,
+            location TEXT,
+            seasonNumber INTEGER,
+            numberOfDiscs INTEGER,
+            aboveTheTitleActorsMatched TEXT,
+            aboveTheTitleActorsUnmatched TEXT
+        )
+        """.trimIndent(),
+    )
+    database.execSQL(
+        """
+        INSERT INTO movies_migration_new (
+            id, title, year, tmdbId, tmdbUrl, posterUrl, upc,
+            isForceAdded, sortOrder, featureType, discType, edition,
+            location, seasonNumber, numberOfDiscs,
+            aboveTheTitleActorsMatched, aboveTheTitleActorsUnmatched
+        )
+        SELECT
+            id, title, year, tmdbId, tmdbUrl, posterUrl, upc,
+            isForceAdded, sortOrder, featureType, discType, edition,
+            location, seasonNumber, numberOfDiscs,
+            aboveTheTitleActorsMatched, aboveTheTitleActorsUnmatched
+        FROM movies
+        """.trimIndent(),
+    )
+    database.execSQL("DROP TABLE movies")
+    database.execSQL("ALTER TABLE movies_migration_new RENAME TO movies")
+}
+
 val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL(

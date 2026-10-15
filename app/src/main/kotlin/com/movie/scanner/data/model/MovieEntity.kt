@@ -20,5 +20,6 @@ data class MovieEntity(
     val location: String? = null,
     val seasonNumber: Int? = null,
     val numberOfDiscs: Int? = null,
-    val aboveTheTitle: String? = null,
+    val aboveTheTitleActorsMatched: String? = null,
+    val aboveTheTitleActorsUnmatched: String? = null,
 )

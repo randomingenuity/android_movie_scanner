@@ -13,7 +13,7 @@ object CsvExporter {
 
     fun buildCsv(movies: List<MovieEntity>): String {
         val header =
-            "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url,above_the_title"
+            "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url,above_the_title_actors_matched,above_the_title_actors_unmatched"
         val rows = movies.map { movie ->
             val featureType = FeatureType.fromLabel(movie.featureType)
             listOf(
@@ -37,7 +37,8 @@ object CsvExporter {
                 movie.tmdbUrl.orEmpty().toCsvField(),
                 movie.tmdbId?.toString().orEmpty().toCsvField(),
                 movie.posterUrl.orEmpty().toCsvField(),
-                movie.aboveTheTitle.orEmpty().toCsvField(),
+                movie.aboveTheTitleActorsMatched.orEmpty().toCsvField(),
+                movie.aboveTheTitleActorsUnmatched.orEmpty().toCsvField(),
             ).joinToString(",")
         }
         return (listOf(header) + rows).joinToString("\n")

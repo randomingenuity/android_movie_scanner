@@ -37,11 +37,11 @@ class CsvExporterTest {
         val lines = csv.lines()
 
         assertEquals(
-            "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url,above_the_title",
+            "title,year,feature_type,barcode,disc_type,movie_release_type,location,season_number,number_of_discs,tmdb_url,tmdb_id,poster_url,above_the_title_actors_matched,above_the_title_actors_unmatched",
             lines[0],
         )
         assertEquals(
-            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"bluray\",\"theatrical\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\",\"\"",
+            "\"The \"\"Best\"\" Movie\",\"2020\",\"Movie\",\"012345678905\",\"bluray\",\"theatrical\",\"Shelf A\",\"\",\"\",\"https://www.themoviedb.org/movie/42\",\"42\",\"https://image.tmdb.org/poster.jpg\",\"\",\"\"",
             lines[1],
         )
     }
@@ -113,7 +113,7 @@ class CsvExporterTest {
 
         assertTrue(
             csv.endsWith(
-                "\"Force Added\",\"1999\",\"Movie\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"",
+                "\"Force Added\",\"1999\",\"Movie\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"",
             ),
         )
     }

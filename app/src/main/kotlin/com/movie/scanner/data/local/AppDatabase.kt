@@ -10,7 +10,7 @@ import com.movie.scanner.data.model.MovieEntity
         MovieEntity::class,
         BulkUnprocessedImageEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
