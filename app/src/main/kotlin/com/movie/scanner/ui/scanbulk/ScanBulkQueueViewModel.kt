@@ -200,21 +200,9 @@ class ScanBulkQueueViewModel @Inject constructor(
     }
 
     /**
-     * Deletes all processed queue rows and their image files from disk.
+     * Deletes every bulk queue row and its image files after the user confirms exit.
      */
-    fun clearDoneRecords() {
-        if (_uiState.value.isProcessing) {
-            return
-        }
-        viewModelScope.launch {
-            bulkImageRepository.deleteProcessedRecords()
-        }
-    }
-
-    /**
-     * Deletes every bulk queue row and its image files after the user confirms clear.
-     */
-    fun clearAllRecords() {
+    fun clearAllRecordsAndExitToScan() {
         if (_uiState.value.isProcessing) {
             return
         }
@@ -222,6 +210,7 @@ class ScanBulkQueueViewModel @Inject constructor(
         bulkQueueSessionState.resetForNewProcessingRun()
         viewModelScope.launch {
             bulkImageRepository.deleteAllRecords()
+            navigationEvents.send(ScanBulkQueueEvent.NavigateToScan)
         }
     }
 

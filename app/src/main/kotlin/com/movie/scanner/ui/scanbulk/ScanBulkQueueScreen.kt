@@ -82,9 +82,6 @@ fun ScanBulkQueueScreen(
     val bulkDefaultsPromptUiState by scanBulkNavigationViewModel.bulkDefaultsPromptUiState
         .collectAsStateWithLifecycle()
     val records = uiState.records
-    val hasDoneRecords = remember(records) {
-        records.any { row -> row.status == BulkQueueItemStatus.PROCESSED }
-    }
     val hasUnprocessedRecords = remember(records) {
         records.any { row -> row.status != BulkQueueItemStatus.PROCESSED }
     }
@@ -104,7 +101,7 @@ fun ScanBulkQueueScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.clearAllRecords()
+                        viewModel.clearAllRecordsAndExitToScan()
                         showClearQueueDialog = false
                     },
                 ) {
@@ -196,21 +193,6 @@ fun ScanBulkQueueScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (hasDoneRecords && !uiState.isProcessing) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = BulkQueueRowHorizontalPadding,
-                            vertical = 8.dp,
-                        ),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Button(onClick = viewModel::clearDoneRecords) {
-                        Text("Clear Done")
-                    }
-                }
-            }
             BulkQueueHeaderRow()
             HorizontalDivider()
             BulkQueueRecordsList(
@@ -227,15 +209,18 @@ fun ScanBulkQueueScreen(
                 isProcessing = uiState.isProcessing,
                 processingRecordId = uiState.processingRecordId,
                 hasUnprocessedRecords = hasUnprocessedRecords,
-                showExit = hasUnprocessedRecords || records.isEmpty(),
-                hasRecords = records.isNotEmpty(),
                 onStartProcessing = viewModel::startProcessing,
                 onScan = {
                     viewModel.prepareForBulkCapture()
                     onNavigateToCapture()
                 },
-                onExit = viewModel::exitToScan,
-                onClear = { showClearQueueDialog = true },
+                onExit = {
+                    if (records.isNotEmpty()) {
+                        showClearQueueDialog = true
+                    } else {
+                        viewModel.exitToScan()
+                    }
+                },
             )
         }
     }
@@ -279,12 +264,9 @@ private fun BulkQueueFooter(
     isProcessing: Boolean,
     processingRecordId: Long?,
     hasUnprocessedRecords: Boolean,
-    showExit: Boolean,
-    hasRecords: Boolean,
     onStartProcessing: () -> Unit,
     onScan: () -> Unit,
     onExit: () -> Unit,
-    onClear: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -316,20 +298,13 @@ private fun BulkQueueFooter(
                 Button(onClick = onScan) {
                     Text("Scan")
                 }
-                if (showExit) {
-                    Button(
-                        onClick = onExit,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                        ),
-                    ) {
-                        Text("Exit")
-                    }
-                }
-                if (hasRecords) {
-                    Button(onClick = onClear) {
-                        Text("Clear")
-                    }
+                Button(
+                    onClick = onExit,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text("Exit")
                 }
             }
         }

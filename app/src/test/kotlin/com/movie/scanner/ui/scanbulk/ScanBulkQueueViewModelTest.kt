@@ -281,24 +281,21 @@ class ScanBulkQueueViewModelTest {
     }
 
     @Test
-    fun clearDoneRecords_deletesProcessedRowsThroughRepository() = runTest(testDispatcher) {
+    fun clearAllRecordsAndExitToScan_deletesEveryRowAndNavigatesToScan() = runTest(testDispatcher) {
         val viewModel = createViewModel()
+        val navigationEvents = mutableListOf<ScanBulkQueueEvent>()
+        val collectJob = launch {
+            viewModel.navigationEventFlow.collect { event ->
+                navigationEvents.add(event)
+            }
+        }
         advanceUntilIdle()
 
-        viewModel.clearDoneRecords()
-        advanceUntilIdle()
-
-        coVerify { bulkImageRepository.deleteProcessedRecords() }
-    }
-
-    @Test
-    fun clearAllRecords_deletesEveryRowThroughRepository() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.clearAllRecords()
+        viewModel.clearAllRecordsAndExitToScan()
         advanceUntilIdle()
 
         coVerify { bulkImageRepository.deleteAllRecords() }
+        assertEquals(listOf(ScanBulkQueueEvent.NavigateToScan), navigationEvents)
+        collectJob.cancel()
     }
 }
