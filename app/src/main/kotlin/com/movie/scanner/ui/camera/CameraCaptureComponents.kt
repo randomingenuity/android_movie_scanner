@@ -1,15 +1,12 @@
 package com.movie.scanner.ui.camera
 
 import android.graphics.Bitmap
-import android.util.Rational
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
-import androidx.camera.core.UseCaseGroup
-import androidx.camera.core.ViewPort
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -42,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.movie.scanner.util.BitmapFillCenterCrop
 import com.movie.scanner.util.ImageProxyBitmapConverter
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -49,15 +47,6 @@ import java.util.concurrent.atomic.AtomicReference
 private const val CAPTURE_TARGET_WIDTH = 1920
 private const val CAPTURE_TARGET_HEIGHT = 1080
 private const val CAPTURE_JPEG_QUALITY = 90
-
-/**
- * Width, height, and display rotation used to build a shared [ViewPort] for preview and capture.
- */
-private data class CameraViewportKey(
-    val width: Int,
-    val height: Int,
-    val rotation: Int,
-)
 
 /**
  * Full-screen camera preview with a registered still-capture callback.
@@ -94,36 +83,23 @@ fun CameraPreview(
     val captureExecutor = remember { Executors.newSingleThreadExecutor() }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val cameraProviderReference = remember { AtomicReference<ProcessCameraProvider?>(null) }
-    var viewportKey by remember { mutableStateOf<CameraViewportKey?>(null) }
+    var previewLayoutWidth by remember { mutableStateOf(0) }
+    var previewLayoutHeight by remember { mutableStateOf(0) }
 
-    LaunchedEffect(viewportKey, lifecycleOwner) {
-        val key = viewportKey ?: return@LaunchedEffect
+    LaunchedEffect(lifecycleOwner) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
             cameraProviderReference.set(cameraProvider)
-            val viewport = ViewPort.Builder(
-                Rational(key.width, key.height),
-                key.rotation,
-            )
-                .setScaleType(ViewPort.FILL_CENTER)
-                .build()
-            val preview = Preview.Builder()
-                .setTargetRotation(key.rotation)
-                .build()
-                .also { useCase ->
-                    useCase.surfaceProvider = previewView.surfaceProvider
-                }
-            imageCapture.targetRotation = key.rotation
+            val preview = Preview.Builder().build().also { useCase ->
+                useCase.surfaceProvider = previewView.surfaceProvider
+            }
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 CameraSelector.DEFAULT_BACK_CAMERA,
-                UseCaseGroup.Builder()
-                    .addUseCase(preview)
-                    .addUseCase(imageCapture)
-                    .setViewPort(viewport)
-                    .build(),
+                preview,
+                imageCapture,
             )
         }, mainExecutor)
     }
@@ -136,14 +112,21 @@ fun CameraPreview(
         }
     }
 
-    LaunchedEffect(imageCapture) {
+    LaunchedEffect(imageCapture, previewLayoutWidth, previewLayoutHeight) {
+        val layoutWidth = previewLayoutWidth
+        val layoutHeight = previewLayoutHeight
         onRegisterCapture {
             imageCapture.takePicture(
                 captureExecutor,
                 object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
                         try {
-                            val bitmap = ImageProxyBitmapConverter.convertToBitmap(image)
+                            val decodedBitmap = ImageProxyBitmapConverter.convertToBitmap(image)
+                            val bitmap = BitmapFillCenterCrop.cropToViewAspectRatio(
+                                decodedBitmap,
+                                layoutWidth,
+                                layoutHeight,
+                            )
                             mainExecutor.execute {
                                 onImageCaptured(bitmap)
                             }
@@ -173,13 +156,9 @@ fun CameraPreview(
         modifier = Modifier.fillMaxSize(),
         update = { view ->
             if (view.width > 0 && view.height > 0) {
-                val nextKey = CameraViewportKey(
-                    width = view.width,
-                    height = view.height,
-                    rotation = view.display.rotation,
-                )
-                if (viewportKey != nextKey) {
-                    viewportKey = nextKey
+                if (previewLayoutWidth != view.width || previewLayoutHeight != view.height) {
+                    previewLayoutWidth = view.width
+                    previewLayoutHeight = view.height
                 }
             }
         },
