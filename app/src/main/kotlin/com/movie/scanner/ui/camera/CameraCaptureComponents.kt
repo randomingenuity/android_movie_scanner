@@ -1,12 +1,15 @@
 package com.movie.scanner.ui.camera
 
 import android.graphics.Bitmap
+import android.util.Rational
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -27,7 +30,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,10 +44,20 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.movie.scanner.util.ImageProxyBitmapConverter
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 private const val CAPTURE_TARGET_WIDTH = 1920
 private const val CAPTURE_TARGET_HEIGHT = 1080
 private const val CAPTURE_JPEG_QUALITY = 90
+
+/**
+ * Width, height, and display rotation used to build a shared [ViewPort] for preview and capture.
+ */
+private data class CameraViewportKey(
+    val width: Int,
+    val height: Int,
+    val rotation: Int,
+)
 
 /**
  * Full-screen camera preview with a registered still-capture callback.
@@ -54,7 +70,11 @@ fun CameraPreview(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val previewView = remember { PreviewView(context) }
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+    }
     val imageCapture = remember {
         val resolutionSelector = ResolutionSelector.Builder()
             .setResolutionStrategy(
@@ -73,26 +93,45 @@ fun CameraPreview(
     }
     val captureExecutor = remember { Executors.newSingleThreadExecutor() }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
+    val cameraProviderReference = remember { AtomicReference<ProcessCameraProvider?>(null) }
+    var viewportKey by remember { mutableStateOf<CameraViewportKey?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewportKey, lifecycleOwner) {
+        val key = viewportKey ?: return@LaunchedEffect
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.surfaceProvider = previewView.surfaceProvider
-            }
+            cameraProviderReference.set(cameraProvider)
+            val viewport = ViewPort.Builder(
+                Rational(key.width, key.height),
+                key.rotation,
+            )
+                .setScaleType(ViewPort.FILL_CENTER)
+                .build()
+            val preview = Preview.Builder()
+                .setTargetRotation(key.rotation)
+                .build()
+                .also { useCase ->
+                    useCase.surfaceProvider = previewView.surfaceProvider
+                }
+            imageCapture.targetRotation = key.rotation
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 CameraSelector.DEFAULT_BACK_CAMERA,
-                preview,
-                imageCapture,
+                UseCaseGroup.Builder()
+                    .addUseCase(preview)
+                    .addUseCase(imageCapture)
+                    .setViewPort(viewport)
+                    .build(),
             )
-        }, ContextCompat.getMainExecutor(context))
+        }, mainExecutor)
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
         onDispose {
+            cameraProviderReference.get()?.unbindAll()
+            cameraProviderReference.set(null)
             captureExecutor.shutdownNow()
         }
     }
@@ -132,6 +171,18 @@ fun CameraPreview(
     AndroidView(
         factory = { previewView },
         modifier = Modifier.fillMaxSize(),
+        update = { view ->
+            if (view.width > 0 && view.height > 0) {
+                val nextKey = CameraViewportKey(
+                    width = view.width,
+                    height = view.height,
+                    rotation = view.display.rotation,
+                )
+                if (viewportKey != nextKey) {
+                    viewportKey = nextKey
+                }
+            }
+        },
     )
 }
 
