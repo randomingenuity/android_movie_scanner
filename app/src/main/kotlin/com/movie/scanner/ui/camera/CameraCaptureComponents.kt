@@ -1,6 +1,7 @@
 package com.movie.scanner.ui.camera
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -27,17 +28,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.movie.scanner.util.BitmapFillCenterCrop
 import com.movie.scanner.util.ImageProxyBitmapConverter
@@ -50,19 +51,41 @@ private const val CAPTURE_TARGET_HEIGHT = 1080
 private const val CAPTURE_JPEG_QUALITY = 90
 
 /**
+ * Latest width and height of the [PreviewView] in pixels, read when a still is captured.
+ */
+private data class PreviewLayoutSize(
+    val width: Int,
+    val height: Int,
+)
+
+/** Chrome inset heights in preview pixels, read when a still is captured. */
+private data class PreviewChromeCropInsets(
+    val topPx: Int,
+    val bottomPx: Int,
+)
+
+/**
  * Full-screen camera preview with a registered still-capture callback.
+ *
+ * @param previewCropTopInsetPx Pixels of [PreviewView] height covered by top chrome (for still crop).
+ * @param previewCropBottomInsetPx Pixels of [PreviewView] height covered by bottom chrome (for still crop).
  */
 @Composable
 fun CameraPreview(
     onImageCaptured: (Bitmap) -> Unit,
     onCaptureFailed: (String) -> Unit,
     onRegisterCapture: (() -> Unit) -> Unit,
+    modifier: Modifier = Modifier,
+    previewCropTopInsetPx: Int = 0,
+    previewCropBottomInsetPx: Int = 0,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            setBackgroundColor(AndroidColor.BLACK)
         }
     }
     val imageCapture = remember {
@@ -86,51 +109,90 @@ fun CameraPreview(
     val cameraProviderReference = remember { AtomicReference<ProcessCameraProvider?>(null) }
     val boundPreviewReference = remember { AtomicReference<Preview?>(null) }
     val bindGeneration = remember { AtomicInteger(0) }
-    var previewLayoutWidth by remember { mutableStateOf(0) }
-    var previewLayoutHeight by remember { mutableStateOf(0) }
+    val previewLayoutSizeReference = remember { AtomicReference(PreviewLayoutSize(0, 0)) }
+    val previewChromeCropInsetsReference = remember {
+        AtomicReference(PreviewChromeCropInsets(0, 0))
+    }
+    previewChromeCropInsetsReference.set(
+        PreviewChromeCropInsets(
+            topPx = previewCropTopInsetPx,
+            bottomPx = previewCropBottomInsetPx,
+        ),
+    )
 
-    LaunchedEffect(lifecycleOwner) {
-        val generation = bindGeneration.incrementAndGet()
+    fun unbindCameraUseCases() {
+        val cameraProvider = cameraProviderReference.get()
+        val boundPreview = boundPreviewReference.getAndSet(null)
+        if (cameraProvider != null) {
+            boundPreview?.let { previewUseCase ->
+                cameraProvider.unbind(previewUseCase)
+            }
+            cameraProvider.unbind(imageCapture)
+        }
+    }
+
+    fun bindCameraUseCases(generation: Int) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             if (generation != bindGeneration.get()) {
                 return@addListener
             }
-            val cameraProvider = cameraProviderFuture.get()
-            cameraProviderReference.set(cameraProvider)
-            val preview = Preview.Builder().build().also { useCase ->
-                useCase.surfaceProvider = previewView.surfaceProvider
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                return@addListener
             }
-            boundPreviewReference.set(preview)
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                CameraSelector.DEFAULT_BACK_CAMERA,
-                preview,
-                imageCapture,
-            )
+            previewView.post {
+                if (generation != bindGeneration.get()) {
+                    return@post
+                }
+                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                    return@post
+                }
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProviderReference.set(cameraProvider)
+                val preview = Preview.Builder().build().also { useCase ->
+                    useCase.surfaceProvider = previewView.surfaceProvider
+                }
+                boundPreviewReference.set(preview)
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    preview,
+                    imageCapture,
+                )
+            }
         }, mainExecutor)
     }
 
     DisposableEffect(lifecycleOwner) {
-        onDispose {
-            bindGeneration.incrementAndGet()
-            val cameraProvider = cameraProviderReference.get()
-            val boundPreview = boundPreviewReference.getAndSet(null)
-            if (cameraProvider != null) {
-                boundPreview?.let { previewUseCase ->
-                    cameraProvider.unbind(previewUseCase)
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val generation = bindGeneration.incrementAndGet()
+                    bindCameraUseCases(generation)
                 }
-                cameraProvider.unbind(imageCapture)
+                Lifecycle.Event.ON_PAUSE -> {
+                    bindGeneration.incrementAndGet()
+                    unbindCameraUseCases()
+                }
+                else -> Unit
             }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            val generation = bindGeneration.incrementAndGet()
+            bindCameraUseCases(generation)
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            bindGeneration.incrementAndGet()
+            unbindCameraUseCases()
             cameraProviderReference.set(null)
             captureExecutor.shutdownNow()
         }
     }
 
-    LaunchedEffect(imageCapture, previewLayoutWidth, previewLayoutHeight) {
-        val layoutWidth = previewLayoutWidth
-        val layoutHeight = previewLayoutHeight
+    LaunchedEffect(imageCapture) {
         onRegisterCapture {
             imageCapture.takePicture(
                 captureExecutor,
@@ -138,11 +200,28 @@ fun CameraPreview(
                     override fun onCaptureSuccess(image: ImageProxy) {
                         try {
                             val decodedBitmap = ImageProxyBitmapConverter.convertToBitmap(image)
-                            val bitmap = BitmapFillCenterCrop.cropToViewAspectRatio(
-                                decodedBitmap,
-                                layoutWidth,
-                                layoutHeight,
-                            )
+                            val layoutSize = previewLayoutSizeReference.get()
+                            val chromeCropInsets = previewChromeCropInsetsReference.get()
+                            val cropTopInset = chromeCropInsets.topPx
+                            val cropBottomInset = chromeCropInsets.bottomPx
+                            val bitmap = if (
+                                cropTopInset > 0 ||
+                                cropBottomInset > 0
+                            ) {
+                                BitmapFillCenterCrop.cropToVisiblePreview(
+                                    decodedBitmap,
+                                    layoutSize.width,
+                                    layoutSize.height,
+                                    cropTopInset,
+                                    cropBottomInset,
+                                )
+                            } else {
+                                BitmapFillCenterCrop.cropToViewAspectRatio(
+                                    decodedBitmap,
+                                    layoutSize.width,
+                                    layoutSize.height,
+                                )
+                            }
                             mainExecutor.execute {
                                 onImageCaptured(bitmap)
                             }
@@ -169,13 +248,12 @@ fun CameraPreview(
 
     AndroidView(
         factory = { previewView },
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .clipToBounds()
+            .fillMaxSize(),
         update = { view ->
             if (view.width > 0 && view.height > 0) {
-                if (previewLayoutWidth != view.width || previewLayoutHeight != view.height) {
-                    previewLayoutWidth = view.width
-                    previewLayoutHeight = view.height
-                }
+                previewLayoutSizeReference.set(PreviewLayoutSize(view.width, view.height))
             }
         },
     )

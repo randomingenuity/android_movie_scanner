@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,11 +24,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -169,6 +173,19 @@ fun ScanBulkCaptureScreen(
     }
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showCameraPreview by remember { mutableStateOf(false) }
+    var headerChromeHeightPx by remember { mutableIntStateOf(0) }
+    var footerChromeHeightPx by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(hasCameraPermission, uiState.isConfigured) {
+        if (hasCameraPermission && uiState.isConfigured) {
+            withFrameMillis { }
+            showCameraPreview = true
+        } else {
+            showCameraPreview = false
+        }
+    }
+
     val headerLabel = if (uiState.isRescanMode) {
         if (uiState.captureMode == ScanCaptureMode.BARCODE) {
             "Rescan Barcode"
@@ -183,121 +200,140 @@ fun ScanBulkCaptureScreen(
 
     Scaffold { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            CameraPreview(
-                onImageCaptured = viewModel::processCapturedImage,
-                onCaptureFailed = viewModel::onCaptureFailed,
-                onRegisterCapture = { captureAction.value = it },
-            )
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 4.dp,
-            ) {
-                Row(
+            if (showCameraPreview) {
+                CameraPreview(
+                    onImageCaptured = viewModel::processCapturedImage,
+                    onCaptureFailed = viewModel::onCaptureFailed,
+                    onRegisterCapture = { captureAction.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                    previewCropTopInsetPx = headerChromeHeightPx,
+                    previewCropBottomInsetPx = footerChromeHeightPx,
+                )
+            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
+                        .onSizeChanged { size -> headerChromeHeightPx = size.height },
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 4.dp,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = headerLabel,
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                        Text(
-                            text = uiState.statusMessage,
-                            modifier = Modifier.padding(top = 4.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        uiState.captureErrorMessage?.let { errorMessage ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = errorMessage,
-                                modifier = Modifier.padding(top = 8.dp),
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
+                                text = headerLabel,
+                                style = MaterialTheme.typography.titleLarge,
                             )
-                            Button(
-                                onClick = viewModel::clearCaptureError,
-                                modifier = Modifier.padding(top = 8.dp),
-                            ) {
-                                Text("Retry")
+                            Text(
+                                text = uiState.statusMessage,
+                                modifier = Modifier.padding(top = 4.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            uiState.captureErrorMessage?.let { errorMessage ->
+                                Text(
+                                    text = errorMessage,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                Button(
+                                    onClick = viewModel::clearCaptureError,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                ) {
+                                    Text("Retry")
+                                }
                             }
                         }
-                    }
-                    if (!uiState.isRescanMode) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            val bulkBatchDiscTypeLabel = DiscType.labelForStored(uiState.bulkBatchDiscType)
-                            if (bulkBatchDiscTypeLabel.isBlank()) {
-                                Button(onClick = scanBulkNavigationViewModel::openDiscTypeDialog) {
-                                    Text("Main Feature Disc Type")
-                                }
-                            } else {
-                                Text(
-                                    text = bulkBatchDiscTypeLabel,
-                                    modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openDiscTypeDialog),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        textDecoration = TextDecoration.Underline,
-                                    ),
-                                )
-                            }
-                            if (uiState.bulkBatchLocation.isNotBlank()) {
-                                Text(
-                                    text = uiState.bulkBatchLocation,
-                                    modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openLocationDialog),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        textDecoration = TextDecoration.Underline,
-                                    ),
-                                )
-                            } else {
-                                Button(onClick = scanBulkNavigationViewModel::openLocationDialog) {
-                                    Text("Location")
-                                }
-                            }
-                            Button(
-                                onClick = viewModel::finishScanning,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                ),
+                        if (!uiState.isRescanMode) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text("Done")
+                                val bulkBatchDiscTypeLabel = DiscType.labelForStored(uiState.bulkBatchDiscType)
+                                if (bulkBatchDiscTypeLabel.isBlank()) {
+                                    Button(onClick = scanBulkNavigationViewModel::openDiscTypeDialog) {
+                                        Text("Main Feature Disc Type")
+                                    }
+                                } else {
+                                    Text(
+                                        text = bulkBatchDiscTypeLabel,
+                                        modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openDiscTypeDialog),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            textDecoration = TextDecoration.Underline,
+                                        ),
+                                    )
+                                }
+                                if (uiState.bulkBatchLocation.isNotBlank()) {
+                                    Text(
+                                        text = uiState.bulkBatchLocation,
+                                        modifier = Modifier.clickable(onClick = scanBulkNavigationViewModel::openLocationDialog),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            textDecoration = TextDecoration.Underline,
+                                        ),
+                                    )
+                                } else {
+                                    Button(onClick = scanBulkNavigationViewModel::openLocationDialog) {
+                                        Text("Location")
+                                    }
+                                }
+                                Button(
+                                    onClick = viewModel::finishScanning,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                    ),
+                                ) {
+                                    Text("Done")
+                                }
                             }
                         }
                     }
                 }
-            }
-            if (!uiState.isCapturing && !uiState.isProcessingCapture) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart,
+                Spacer(modifier = Modifier.weight(1f))
+                if (!uiState.isCapturing && !uiState.isProcessingCapture) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { size ->
+                                if (size.height > 0) {
+                                    footerChromeHeightPx = size.height
+                                }
+                            },
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 4.dp,
                     ) {
-                        if (uiState.captureMode == ScanCaptureMode.BARCODE) {
-                            Button(onClick = viewModel::skipBarcode) {
-                                Text("Skip")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 32.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+                                    Button(onClick = viewModel::skipBarcode) {
+                                        Text("Skip")
+                                    }
+                                }
                             }
+                            ShutterButton(
+                                onClick = {
+                                    viewModel.beginCaptureProcessing()
+                                    captureAction.value?.invoke()
+                                },
+                            )
+                            Box(modifier = Modifier.weight(1f))
                         }
                     }
-                    ShutterButton(
-                        onClick = {
-                            viewModel.beginCaptureProcessing()
-                            captureAction.value?.invoke()
-                        },
-                    )
-                    Box(modifier = Modifier.weight(1f))
                 }
             }
             CaptureProgressOverlay(

@@ -26,11 +26,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -131,8 +134,20 @@ fun ScanScreen(
     }
 
     val captureAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showCameraPreview by remember { mutableStateOf(false) }
+    var headerChromeHeightPx by remember { mutableIntStateOf(0) }
+    var footerChromeHeightPx by remember { mutableIntStateOf(0) }
     var manualEntryTitle by remember { mutableStateOf("") }
     var manualEntryYear by remember { mutableStateOf("") }
+
+    LaunchedEffect(hasCameraPermission, uiState.isConfigured) {
+        if (hasCameraPermission && uiState.isConfigured) {
+            withFrameMillis { }
+            showCameraPreview = true
+        } else {
+            showCameraPreview = false
+        }
+    }
 
     LaunchedEffect(uiState.showManualEntryDialog) {
         if (uiState.showManualEntryDialog) {
@@ -197,75 +212,94 @@ fun ScanScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            CameraPreview(
-                onImageCaptured = viewModel::processCapturedImage,
-                onCaptureFailed = viewModel::onCaptureFailed,
-                onRegisterCapture = { captureAction.value = it },
-            )
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 4.dp,
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        text = if (uiState.captureMode == ScanCaptureMode.BARCODE) "Barcode" else "Cover",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        text = uiState.statusMessage,
-                        modifier = Modifier.padding(top = 4.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    uiState.captureErrorMessage?.let { errorMessage ->
-                        Text(
-                            text = errorMessage,
-                            modifier = Modifier.padding(top = 8.dp),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Button(
-                            onClick = viewModel::clearCaptureError,
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) {
-                            Text("Retry")
-                        }
-                    }
-                }
+            if (showCameraPreview) {
+                CameraPreview(
+                    onImageCaptured = viewModel::processCapturedImage,
+                    onCaptureFailed = viewModel::onCaptureFailed,
+                    onRegisterCapture = { captureAction.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                    previewCropTopInsetPx = headerChromeHeightPx,
+                    previewCropBottomInsetPx = footerChromeHeightPx,
+                )
             }
-            if (!uiState.isCapturing && !uiState.isProcessingCapture) {
-                Row(
+            Column(modifier = Modifier.fillMaxSize()) {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .onSizeChanged { size -> headerChromeHeightPx = size.height },
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 4.dp,
                 ) {
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (uiState.captureMode == ScanCaptureMode.BARCODE) {
-                            Button(onClick = viewModel::skipBarcode) {
-                                Text("Skip")
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = if (uiState.captureMode == ScanCaptureMode.BARCODE) "Barcode" else "Cover",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text(
+                            text = uiState.statusMessage,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        uiState.captureErrorMessage?.let { errorMessage ->
+                            Text(
+                                text = errorMessage,
+                                modifier = Modifier.padding(top = 8.dp),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Button(
+                                onClick = viewModel::clearCaptureError,
+                                modifier = Modifier.padding(top = 8.dp),
+                            ) {
+                                Text("Retry")
                             }
                         }
                     }
-                    ShutterButton(
-                        onClick = {
-                            viewModel.beginCaptureProcessing()
-                            captureAction.value?.invoke()
-                        },
-                    )
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterEnd,
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (!uiState.isCapturing && !uiState.isProcessingCapture) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { size ->
+                                if (size.height > 0) {
+                                    footerChromeHeightPx = size.height
+                                }
+                            },
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 4.dp,
                     ) {
-                        if (uiState.captureMode == ScanCaptureMode.COVER) {
-                            Button(onClick = viewModel::showManualEntry) {
-                                Text("Manual Entry")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 32.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                if (uiState.captureMode == ScanCaptureMode.BARCODE) {
+                                    Button(onClick = viewModel::skipBarcode) {
+                                        Text("Skip")
+                                    }
+                                }
+                            }
+                            ShutterButton(
+                                onClick = {
+                                    viewModel.beginCaptureProcessing()
+                                    captureAction.value?.invoke()
+                                },
+                            )
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterEnd,
+                            ) {
+                                if (uiState.captureMode == ScanCaptureMode.COVER) {
+                                    Button(onClick = viewModel::showManualEntry) {
+                                        Text("Manual Entry")
+                                    }
+                                }
                             }
                         }
                     }

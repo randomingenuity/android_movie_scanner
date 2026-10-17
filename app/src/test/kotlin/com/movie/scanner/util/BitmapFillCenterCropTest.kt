@@ -38,4 +38,16 @@ class BitmapFillCenterCropTest {
             ),
         )
     }
+
+    @Test
+    fun computeVerticalInsetCropRect_removesTopAndBottomChromeBands() {
+        val cropRect = BitmapFillCenterCrop.computeVerticalInsetCropRect(
+            bitmapWidth = 1080,
+            bitmapHeight = 1000,
+            viewHeightPx = 2000,
+            topInsetPx = 200,
+            bottomInsetPx = 300,
+        )
+        assertEquals(FillCenterCropRect(left = 0, top = 100, width = 1080, height = 750), cropRect)
+    }
 }
